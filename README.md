@@ -20,7 +20,7 @@ For directional libraries only. PBAT and indirectional libraries are _NOT_ suppo
 
  + bwa mem from: https://github.com/lh3/bwa
 
- + IDBA-Hybrid from: https://github.com/loneknightpy/idba
+ + EMBOSS from: http://emboss.sourceforge.net/
 
 ## Install
 
@@ -28,10 +28,9 @@ You'll need to download the binary from above sites. And put `idba_hybrid` in to
 
 Your `bsIntegration/bin/` should be like this:
 ````bash
--rwxr-xr-x   20800 Feb 20 00:32 alnmethly
 -rwxr-xr-x  398860 Feb 20 00:48 bwa
 -rwxr-xr-x   21892 Sep  1 08:37 bwameth.py
--rwxr-xr-x 1372804 Feb 20 01:14 idba_hybrid
+-rwxr-xr-x   27040 Feb 20 01:14 water
 -rwxr-xr-x  971772 Feb 20 00:48 samtools
 ````
 

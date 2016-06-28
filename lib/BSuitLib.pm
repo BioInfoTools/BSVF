@@ -423,6 +423,49 @@ sub do_analyse {
 		/([^.]+)\.(\d)/ or die;
 		$tID{$1}{$2} = $_;
 	}
+	File::Path::make_path("$main::RootPath/${main::ProjectID}_analyse",{verbose => 0,mode => 0755});
+	my @retVirus;
+	my $VirusFN = "$main::RootPath/${main::ProjectID}_analyse/Virus.fa";
+	open VIRUS,'>',$VirusFN or die;
+	my $FH = openfile($main::Config->{'RefFiles'}->{'VirusRef'});
+	while (my $ret = FastaReadNext($FH)) {
+		push @retVirus,$ret;
+		print VIRUS '>',$ret->[0],"\n",$ret->[1],"\n";
+	}
+	close $FH;
+	close VIRUS;
+	for my $k (keys %tID) {
+		my $myGrepf = "$main::RootPath/${main::ProjectID}_grep/$k.bam.grep";
+		print "[$myGrepf]\n";
+		my $outf = "$main::RootPath/${main::ProjectID}_analyse/$k.analyse";
+		open IN,'<',$myGrepf or die;
+		open OUT,'>',$outf or die;
+		while (<IN>) {
+			chomp;
+			my @LineDat = split /\t/,$_;
+			#ddx \@LineDat;
+			my $query = @LineDat[5,7];
+			#ddx \@retVirus;
+			my $ta = doAln($VirusFN,$LineDat[5],1) if $LineDat[5] ne 'N';	# 时间有限，病毒只支持第一条染色体
+			my $tb = doAln($VirusFN,$LineDat[7],-1) if $LineDat[7] ne 'N';
+			my %res;
+			push @{$res{$ta->[0]}},$ta->[1] if $ta;	# 没空，不区分病毒的左右端点顺序了。
+			push @{$res{$tb->[0]}},$tb->[1] if $tb;
+			my @tk = keys(%res);
+			next if @tk > 1 or @{$res{$tk[0]}} < 1;
+			#ddx \%res;
+			print OUT join("\t",@LineDat[0..3],'Virus',$tk[0],@{$res{$tk[0]}}),"\n";
+		}
+	}
+}
+
+sub do_analyse0 {
+	my $Refilename = warnFileExist($main::RefConfig->{$main::RefFilesSHA}->{'Refilename'});
+	my (%tID,%tFH);
+	for (@{$main::Config->{'DataFiles'}->{'='}}) {
+		/([^.]+)\.(\d)/ or die;
+		$tID{$1}{$2} = $_;
+	}
 	my %ReadsIndex;
 	for my $k (keys %tID) {
 		my $GrepResult = "$main::RootPath/${main::ProjectID}_grep/$k.sam";
