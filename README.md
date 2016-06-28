@@ -51,6 +51,10 @@ Your `bsIntegration/bin/` should be like this:
  * Human: <ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz>
  * HBV: [gi|59585|emb|X04615.1| Hepatitis B virus genome, subtype ayr](http://www.ncbi.nlm.nih.gov/nuccore/X04615.1?report=GenBank)
 
+## Simulation
+
+    ./simVirusInserts.pl GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz HBV.X04615.fa sim150 150
+
 ### GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
 
 A gzipped file that contains FASTA format sequences for the [following](ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/README_analysis_sets.txt):
