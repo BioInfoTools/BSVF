@@ -28,7 +28,7 @@ Run `pip install toolshed`.
 
 Run `src/install.sh`.
 
-In case EMBOSS failed to install, you'll need to download the binary from above sites. And put `water` of EMBOSS in to `./bin`.
+In case EMBOSS failed to install, you'll need to download the binary from above sites. And put `water` of EMBOSS in to `./bin`. Or, just link `water` to `./bin`.
 
 Your `bsIntegration/bin/` should be like this:
 ````bash
@@ -152,98 +152,6 @@ pip install toolshed
 ## Description
 
 **BSuit** is a suit to analyse xxx.
-
-### 代码说明
-
-* 所有输出文件都在`Output.WorkDir`下。
-* 无印的`.bam` 是后续分析目前使用的。
-* `.sn.bam` 是 sort by read name，暂时没用。
-* `.snPstat.bam` 就是把`.sn.bam`用`-F256`过滤下，只是用来数数的。
-
-#### do_pre()
-
-根据`[RefFiles]`信息，生成bwa-meth的参考序列。并将染色体长度及物种来源信息储存于`Ref/Ref.ini`。
-
-#### do_aln()
-
-生成`${ProjectID}_aln.sh`
-
-1. 调用`bwa-meth`比对。结果是按染色体坐标排序的。
-2. `samtools merge`同一id的。所以必须先排序才能merge。
-3. `samtools sort -m 2415919104 -n` -> `${id}.sn.bam`
-
-#### do_grep()
-
-`config_file`的设定是没种生物学样品取一个名字，内部文件用逗号隔开。  
-即上面例子中有`780_T`, `s01_P`, `tSE_X`三个生物学上不同的样品，三者分开分析。
-
-##### 161@BSuitLib.pm: 在**按染色体坐标排序的**bam文件中，寻找满足下列条件的：
-
-* bam文件第7列为"="即比到同一染色体上,且第9列的Ins_Size与`config_file`中均值的差大于3倍SD。	`$flag |= 1`
-* bam文件第3列为病毒染色体或者第7列为病毒染色体。	`$flag |= 4`
-
-将符合条件的bam行写到sam文件中，列表信息在`${ProjectID}_grep.ini`中。
-
-##### 同时记录 ％ReadsIndex ，每个生物学样品记录一个。
-
-173: %ReadsIndex: {$ReadID} = [[0,$RefChr,$flag]]
-
-204: push @{$ReadsIndex{$ReadID}},[$sam文件指针,$r12R1,[Chr,Pos,MapQ,CIGAR],$flag];  
-
-##### 对 ％ReadsIndex 的key，按染色体坐标排序，保证病毒排前面。
-
-得到 @IDsorted of $ReadID。
-
-##### 同一$ReadID代表同一对PE，用mergeIn函数按坐标范围一个个叠加，直到断开。
-
-这里只包括符合前面161中条件的那些Read。  
-叠加时，某个ReadID的所有hit，是同时加入叠加的。这条今晚还没确认当时是怎么实现的。  
-**确认目前的block是桥墩，不是整个桥**
-
-得到的block写入`${ProjectID}__grep/blocks.ini`中。
-
-#### do_analyse
-
-##### 过滤block
-
-* sam文件中比对到多个地方的
-* 覆盖深度太低的
-
-##### 组装
-
-* 提取被覆盖的参考序列
-* 将Reads按照 原样、tr /Cc/Tt/、tr /Gg/Aa/ 处理成3份。
-* 将参考序列同上处理出3份。
-* 用修改IDBA/M-Vicuna的在提供参考序列的情况下组装。
-* 通过组装合并3份结果。
-* 比对判断断点。
-
-## Add on
-
-### Find bridge 墩 / 候选簇
-
-* 人的PE，不同染色体的hit直接扔掉不管。
-* Get all soft-cliped, with 10S is enough. 参数＝(人10S，选出来参与归簇)，(病毒20S，不分析)
-* 确定unmap的，只保留map上的。
-* 3*sd not needed.
-* 按PE归簇
-
-### Analyse
-
-* 组装后前两根contig都得判断。两根得aln到人的两端。 （只看前两根是否分别在两端）
-* 组装只考虑按甲基化处理后三种碱基的情况。
-* 对结果归类到图中那堆分类。对fq用aln到contig的方法归类。 （年后）
-* 分析病毒整合的热点区域。 （年后）
-
-### 甲基化处理
-
-看bam的flag，reverse<=>负链
-read1 正链， C/T
-read1 minus， G/A
-read2 plus， G/A
-read2 minus C/T
-
-SE的同 read1
 
 ### Formats
 
