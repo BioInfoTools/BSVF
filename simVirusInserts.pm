@@ -144,9 +144,12 @@ sub dosim($$$) {
 	open O,'>',$Paras->{OutPrefix}.'.Ref.fa';
 	open R1,'>',$Paras->{OutPrefix}.'.1.fq';
 	open R2,'>',$Paras->{OutPrefix}.'.2.fq';
-	my @Refticks = @{getticks($RefBorder,$Refstr,$Paras->{RefLen},$PEinsertLen,$Paras->{RefNratioMax})};
-	my @Virticks = @{getticks($Paras->{VirFrag},$Virstr,$Paras->{VirLen},int(0.9+ 0.5*$Paras->{VirFrag}),$Paras->{RefNratioMax})};
-	ddx $Paras;
+	#my @Refticks = @{getticks($RefBorder,$Refstr,$Paras->{RefLen},$PEinsertLen,$Paras->{RefNratioMax})};
+	#my @Virticks = @{getticks($Paras->{VirFrag},$Virstr,$Paras->{VirLen},int(0.9+ 0.5*$Paras->{VirFrag}),$Paras->{RefNratioMax})};
+	my @Refticks = @{$Paras->{pRefticks}};	# made a copy
+	my @Virticks = @{$Paras->{pVirticks}};
+	#ddx $Paras;
+	print STDERR "$Paras->{OutPrefix}:\tPE_Ins:$PEinsertLen, Vir_Frag:$Paras->{VirFrag}, ...";
 	for my $pRef (@Refticks) {
 		my $seqR1 = substr $Refstr,($pRef-$PEinsertLen),$PEinsertLen;
 		my $seqR2 = substr $Refstr,$pRef,$PEinsertLen;
@@ -198,6 +201,7 @@ sub dosim($$$) {
 	}
 	close O;
 	close R1; close R2;
+	print STDERR "\b\b\bdone.\n";
 }
 
 sub cigar2rpos($$) {
