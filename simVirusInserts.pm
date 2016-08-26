@@ -1,6 +1,7 @@
 package main;
 use strict;
 use warnings;
+use IO::Zlib;
 
 sub revcom($) {
 	my $str = $_[0];
@@ -142,14 +143,16 @@ sub dosim($$$) {
 	my $SeqReadLen = $Paras->{SeqReadLen};
 	my $RefBorder = $PEinsertLen + 1000;
 	open O,'>',$Paras->{OutPrefix}.'.Ref.fa';
-	open R1,'>',$Paras->{OutPrefix}.'.1.fq';
-	open R2,'>',$Paras->{OutPrefix}.'.2.fq';
+	#open R1,'>',$Paras->{OutPrefix}.'.1.fq';
+	#open R2,'>',$Paras->{OutPrefix}.'.2.fq';
+	tie *R1, 'IO::Zlib', $Paras->{OutPrefix}.'.1.fq.gz', "wb9";
+	tie *R2, 'IO::Zlib', $Paras->{OutPrefix}.'.2.fq.gz', "wb9";
 	#my @Refticks = @{getticks($RefBorder,$Refstr,$Paras->{RefLen},$PEinsertLen,$Paras->{RefNratioMax})};
 	#my @Virticks = @{getticks($Paras->{VirFrag},$Virstr,$Paras->{VirLen},int(0.9+ 0.5*$Paras->{VirFrag}),$Paras->{RefNratioMax})};
 	my @Refticks = @{$Paras->{pRefticks}};	# made a copy
 	my @Virticks = @{$Paras->{pVirticks}};
 	#ddx $Paras;
-	print STDERR "$Paras->{OutPrefix}:\tPE_Ins:$PEinsertLen, Vir_Frag:$Paras->{VirFrag}, ...";
+	print STDERR "$Paras->{OutPrefix}:\tPE_Ins:$PEinsertLen, Vir_Frag:$Paras->{VirFrag}.\n";
 	for my $pRef (@Refticks) {
 		my $seqR1 = substr $Refstr,($pRef-$PEinsertLen),$PEinsertLen;
 		my $seqR2 = substr $Refstr,$pRef,$PEinsertLen;
@@ -157,6 +160,7 @@ sub dosim($$$) {
 		my $startV = $pVir-int(0.5*$Paras->{VirFrag});
 		my $seqV = substr $Virstr,$startV,$Paras->{VirFrag};
 		my $isReverse = int(rand(2));
+		$isReverse = $pRef % 2;	# fixed upon odd/even
 		my $strand = '+';
 		if ($isReverse) {
 			$seqV = revcom($seqV);
@@ -201,7 +205,7 @@ sub dosim($$$) {
 	}
 	close O;
 	close R1; close R2;
-	print STDERR "\b\b\bdone.\n";
+	#print STDERR "\b\b\bdone.\n";
 }
 
 sub cigar2rpos($$) {

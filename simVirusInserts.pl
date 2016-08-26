@@ -53,7 +53,7 @@ my $TinyLen2 = 10;
 my $TinyLen3 = 20;
 my $LongLen = int(0.5 + $ReadLen*4/3);
 my @PEins = (100,150,200,420);
-my $maxPEins;
+my $maxPEins = 750;	# [77,96]
 if ($ReadLen > 96) {
 	@PEins = (150,220,350,500);
 	$maxPEins = 500;
@@ -62,6 +62,7 @@ if ($ReadLen < 77) {
 	@PEins = (60,80,120,250);
 	$maxPEins = 250;
 }
+warn "ReadLen:$ReadLen, PE_ins:@PEins, maxPEins:$maxPEins.\n";
 
 my %Para = (
 	PEinsertLen => $PEins[2],
@@ -102,73 +103,76 @@ $Para{pRefticks} = $pRefticks;
 $Para{pVirticks} = $pVirticks;
 
 dosim($Refstr,$Virstr,\%Para);
-$fqFiles{$Para{OutPrefix}} = $Para{PEinsertLen};
+$fqFiles{$Para{OutPrefix}} = [$Para{PEinsertLen},$Para{VirFrag}];
 
 $Para{PEinsertLen} = $PEins[2];
 $Para{VirFrag} = $ShortLen;
 $Para{OutPrefix} = $outp . '_m2D';
 dosim($Refstr,$Virstr,\%Para);
-$fqFiles{$Para{OutPrefix}} = $Para{PEinsertLen};
+$fqFiles{$Para{OutPrefix}} = [$Para{PEinsertLen},$Para{VirFrag}];
 
 $Para{PEinsertLen} = $PEins[2];
 $Para{VirFrag} = $TinyLen1;
 $Para{OutPrefix} = $outp . '_m2Dty1';
 dosim($Refstr,$Virstr,\%Para);
-$fqFiles{$Para{OutPrefix}} = $Para{PEinsertLen};
+$fqFiles{$Para{OutPrefix}} = [$Para{PEinsertLen},$Para{VirFrag}];
 
 $Para{PEinsertLen} = $PEins[2];
 $Para{VirFrag} = $TinyLen2;
 $Para{OutPrefix} = $outp . '_m2Dty2';
 dosim($Refstr,$Virstr,\%Para);
-$fqFiles{$Para{OutPrefix}} = $Para{PEinsertLen};
+$fqFiles{$Para{OutPrefix}} = [$Para{PEinsertLen},$Para{VirFrag}];
 
 $Para{PEinsertLen} = $PEins[2];
 $Para{VirFrag} = $TinyLen3;
 $Para{OutPrefix} = $outp . '_m2Dty3';
 dosim($Refstr,$Virstr,\%Para);
-$fqFiles{$Para{OutPrefix}} = $Para{PEinsertLen};
+$fqFiles{$Para{OutPrefix}} = [$Para{PEinsertLen},$Para{VirFrag}];
 
 $Para{PEinsertLen} = $PEins[3];
 $Para{VirFrag} = $LongLen;
 $Para{OutPrefix} = $outp . '_m458AE';
 dosim($Refstr,$Virstr,\%Para);
-$fqFiles{$Para{OutPrefix}} = $Para{PEinsertLen};
+$fqFiles{$Para{OutPrefix}} = [$Para{PEinsertLen},$Para{VirFrag}];
 
 $Para{PEinsertLen} = $PEins[2];
 $Para{VirFrag} = $LongLen;
 $Para{OutPrefix} = $outp . '_m9';
 dosim($Refstr,$Virstr,\%Para);
-$fqFiles{$Para{OutPrefix}} = $Para{PEinsertLen};
+$fqFiles{$Para{OutPrefix}} = [$Para{PEinsertLen},$Para{VirFrag}];
 
 $Para{PEinsertLen} = $PEins[1];
 $Para{VirFrag} = $LongLen;
 $Para{OutPrefix} = $outp . '_m6';
 dosim($Refstr,$Virstr,\%Para);
-$fqFiles{$Para{OutPrefix}} = $Para{PEinsertLen};
+$fqFiles{$Para{OutPrefix}} = [$Para{PEinsertLen},$Para{VirFrag}];
 
 $Para{PEinsertLen} = $PEins[1];
 $Para{VirFrag} = $ShortLen;
 $Para{OutPrefix} = $outp . '_m7C';
 dosim($Refstr,$Virstr,\%Para);
-$fqFiles{$Para{OutPrefix}} = $Para{PEinsertLen};
+$fqFiles{$Para{OutPrefix}} = [$Para{PEinsertLen},$Para{VirFrag}];
 
 $Para{PEinsertLen} = $PEins[0];
 $Para{VirFrag} = $ShortLen;
 $Para{OutPrefix} = $outp . '_mB';
 dosim($Refstr,$Virstr,\%Para);
-$fqFiles{$Para{OutPrefix}} = $Para{PEinsertLen};
+$fqFiles{$Para{OutPrefix}} = [$Para{PEinsertLen},$Para{VirFrag}];
 
 my @fps = sort keys %fqFiles;
 print INI "[DataFiles]\n";
 for my $i (0 .. $#fps) {
-	print INI "F$fps[$i].1=",abs_path($fps[$i].'.1.fq'),"\n";
-	print INI "F$fps[$i].2=",abs_path($fps[$i].'.2.fq'),"\n";
+	print INI "F$fps[$i].1=",abs_path($fps[$i].'.1.fq.gz'),"\n";
+	print INI "F$fps[$i].2=",abs_path($fps[$i].'.2.fq.gz'),"\n";
 }
 print INI "\n[InsertSizes]\n";
 for my $i (0 .. $#fps) {
-	print INI "F$fps[$i]=",$fqFiles{$fps[$i]},"\nF$fps[$i].SD=",$i+1,"\n";
+	print INI "F$fps[$i]=",$fqFiles{$fps[$i]}->[0],"\nF$fps[$i].SD=",$i+1,"\n";
 }
 print INI "\n[Simed]\n";
+for my $i (0 .. $#fps) {
+	print INI "F$fps[$i].VirFrag=",$fqFiles{$fps[$i]}->[1],"\n";
+}
 print INI 'Refticks=',join(',',@$pRefticks),"\n";
 print INI 'Virticks=',join(',',@$pVirticks),"\n";
 close INI;
