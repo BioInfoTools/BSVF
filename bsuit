@@ -49,16 +49,16 @@ if (@ARGV < 2) {
 	ShowHelp();
 }
 
-$Cmd2Fun{'check'} = \&do_check;
-
 my $cmd=lc shift;
 my $cfgfile=shift;
 die "[!]Config File [$cfgfile] NOT found !\n" unless -f $cfgfile;
 
-unless (exists $Cmd2Fun{$cmd}) {
+unless (exists $Cmd2Fun{$cmd} or $cmd eq 'check') {
 	warn "[x]Unknown Command: [$cmd] !\n";
 	ShowHelp();
 }
+
+$Cmd2Fun{'check'} = \&do_check;
 
 #our $CFGminMAPQ = 30;
 our $minHostDepth = 10;
@@ -86,6 +86,14 @@ our $RootPath = $Config->{'Output'}->{'WorkDir'};
 $RootPath =~ s/[\/\\]+$//g;
 our $ProjectID = $Config->{'Output'}->{'ProjectID'};
 warn "[!] Working on: [$ProjectID] @ [$RootPath]\n";
+
+if (grep /^sv1$/i,@ARGV) {
+	my @SDs = grep /\.SD$/,keys(%{$Config->{'InsertSizes'}});
+	for (@SDs) {
+		$Config->{'InsertSizes'}->{$_} = 1;
+	}
+	warn "[!] All ",scalar(@SDs)," SD(s) are set to 1.\n";
+}
 
 our $HostRefName = basename($Config->{'RefFiles'}->{'HostRef'});
 our $VirusRefName = basename($Config->{'RefFiles'}->{'VirusRef'});

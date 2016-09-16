@@ -476,7 +476,11 @@ sub do_analyse {
 					}
 				}
 			}
-			next unless defined $strand;
+			#next unless defined $strand;
+			unless (defined $strand) {	# Well, we need more poistive.
+				print OUT join("\t",@LineDat[0..3],'Virus','NA','0','0'),"\n";
+				next;
+			}
 			$LineDat[3] = -1 if $LineDat[3] == $LineDat[2] + 1;	# 貌似正负链加减一没统一？
 			print OUT join("\t",@LineDat[0..3],'Virus',$strand,$left,$right),"\n";
 		}
@@ -501,6 +505,7 @@ sub do_check {
 		}
 	}
 	my %Refticksh = map { $Refticks[$_] => $_ } 0..$#Refticks;	# http://stackoverflow.com/a/2957903/159695
+	open OUT,'>',"$main::RootPath/${main::ProjectID}_check.log" or die;
 	for my $k (keys %VirFrag) {
 		my (@VirFragStartEnd);
 		for my $pVir (@Virticks) {
@@ -512,19 +517,23 @@ sub do_check {
 		$VirFragSE{$k} = \@VirFragStartEnd;
 		if ( (! defined $bias) or $bias<0 ) {
 			for my $i (0 .. $#Refticks) {
-				print "$k $i:\t$Refticks[$i], ",join('-',@{$VirFragStartEnd[$i]}),"\n";
+				print OUT "$k $i:\t$Refticks[$i], ",join('-',@{$VirFragStartEnd[$i]}),"\n";
 			}
 		}
 	}
 	$bias = 10 unless (defined $bias and $bias >= 0);
-	ddx \%VirFrag; warn 'Load @Refticks:',scalar(@Refticks),', @Virticks',scalar(@Virticks),". Bias_Allowed=$bias\n";
+	#ddx \%VirFrag;
+	warn 'Load @Refticks:',scalar(@Refticks),', @Virticks',scalar(@Virticks),". Bias_Allowed=$bias\n";
+	my %VirChrP;
+	for my $p (@Virticks) {
+		$VirChrP{$_}=1 for ($p-$bias)..($p+$bias);
+	}
 
 	my (%tID,%Result);
 	for (@{$main::Config->{'DataFiles'}->{'='}}) {
 		/([^.]+)\.(\d)/ or die;
 		$tID{$1}{$2} = $_;
 	}
-	open OUT,'>',"$main::RootPath/${main::ProjectID}_check.log" or die;
 	for my $k (keys %tID) {
 		my $myAnaf = "$main::RootPath/${main::ProjectID}_analyse/$k.analyse";
 		print "[$myAnaf]\n";
@@ -544,16 +553,28 @@ sub do_check {
 						my $idx = $Refticksh{$p};
 						print OUT 'h',$Refticks[$idx],",";
 						($va,$vb) = @{$VirFragSE{$k}->[$idx]};
+						goto NOVIR if $strand eq 'NA';
 						if (($vp1<=$vb) and ($vp2>=$va)) {
 							$flag |= 2;
+							$flag &= ~4;
+							$flag &= ~8;
 							print OUT "v$va-$vb,";
 						} elsif (($vp1 <= $vb+$bias) and ($vp2 >= $va-$bias)) {
 							$flag |= 4;
+							$flag &= ~8;
 							print OUT "m$va-$vb,";
+						} else {
+							for my $p ($vp1 .. $vp2) {
+								if (exists $VirChrP{$p}) {
+									$flag |= 8;
+									last;
+								}
+							}
 						}
-						last if $flag > 1;
+						last if $flag == 3;
 					}
 				}
+				NOVIR:
 				if ($flag==1) {
 					print OUT "x$va-$vb,";
 				}
