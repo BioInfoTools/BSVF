@@ -4,6 +4,7 @@ use warnings;
 require BSuitInc;
 use File::Path 2.08;	# http://search.cpan.org/~riche/File-Path-2.11/lib/File/Path.pm#API_CHANGES
 use File::Basename;
+use Galaxy;
 use Galaxy::IO;
 use Galaxy::IO::FASTA;
 #use JSON;
@@ -443,6 +444,7 @@ sub do_analyse {
 		my $outf = "$main::RootPath/${main::ProjectID}_analyse/$k.analyse";
 		open IN,'<',$myGrepf or die;
 		open OUT,'>',$outf or die;
+		my (%OutDat,@OutCnt);
 		while (<IN>) {
 			chomp;
 			my @LineDat = split /\t/,$_;
@@ -478,12 +480,47 @@ sub do_analyse {
 			}
 			#next unless defined $strand;
 			unless (defined $strand) {	# Well, we need more poistive.
-				print OUT join("\t",@LineDat[0..3],'Virus','NA','0','0'),"\n";
+				#print OUT join("\t",@LineDat[0..3],'Virus','NA','0','0'),"\n";
+				if ($LineDat[2] == -1) {
+					$OutDat{$LineDat[1]}{$LineDat[3]} = [$LineDat[0],$LineDat[2],'Virus','NA','0','0'];	# 忘了为啥会是第三列非 -1。
+				} else {
+					$OutDat{$LineDat[1]}{$LineDat[2]} = [$LineDat[0],$LineDat[3],'Virus','NA','0','0'];
+				}
+				++$OutCnt[1];
 				next;
 			}
 			$LineDat[3] = -1 if $LineDat[3] == $LineDat[2] + 1;	# 貌似正负链加减一没统一？
-			print OUT join("\t",@LineDat[0..3],'Virus',$strand,$left,$right),"\n";
+			#print OUT join("\t",@LineDat[0..3],'Virus',$strand,$left,$right),"\n";
+			$OutDat{$LineDat[1]}{$LineDat[2]} = [$LineDat[0],$LineDat[3],'Virus',$strand,$left,$right];
+			++$OutCnt[0];
 		}
+		for my $chr (sort {alphanum($a,$b)} keys %OutDat) {
+			my ($lastL,$lastR) = (-1,-1);
+			for my $pos (sort {$a <=> $b} keys %{$OutDat{$chr}}) {
+				if ($lastL == -1) {
+					$lastL = $pos;
+					$lastR = $pos;
+					#print STDERR ">>> $pos\n";
+				} elsif (($pos - $lastR) <= $main::ResultMergeRange) {
+					#print STDERR "-> $pos - ($lastL,$lastR)\n";
+					$lastR = $pos;	# 暂时只考虑左端点的合并
+				} else {
+					if ($lastL != -1) {
+						my @Dat = @{$OutDat{$chr}{$lastL}};	# 假设第一条的病毒结果最准确（其实应该是中间某个；最好前期打分）
+						print OUT join("\t",$Dat[0],$chr,$lastL,@Dat[1..$#Dat]),"\n";
+						++$OutCnt[2];
+						#print STDERR join("\t",'---',$Dat[0],$chr,$lastL,@Dat[1..$#Dat]),"\n";
+					}
+					($lastL,$lastR) = ($pos,$pos);
+				}
+			}
+			if ($lastL != -1) {
+				my @Dat = @{$OutDat{$chr}{$lastL}};	# 假设第一条的病毒结果最准确（其实应该是中间某个；最好前期打分）
+				print OUT join("\t",$Dat[0],$chr,$lastL,@Dat[1..$#Dat]),"\n";
+				++$OutCnt[2];
+			}
+		}
+		warn "[!]O: $OutCnt[0]+$OutCnt[1] => $OutCnt[2] in [$k], merged=",$OutCnt[2]-$OutCnt[0]-$OutCnt[1],".\n";
 	}
 }
 
