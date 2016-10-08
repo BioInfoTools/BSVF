@@ -449,7 +449,7 @@ sub do_analyse {
 			chomp;
 			my @LineDat = split /\t/,$_;
 			#ddx \@LineDat;
-			my $query = @LineDat[5,7];
+			#my $query = @LineDat[5,7];
 			#ddx \@retVirus;
 			my ($left,$right,$strand);
 			if ($LineDat[5] ne 'N') {	# 时间有限，病毒只支持第一条染色体
@@ -568,15 +568,32 @@ sub do_check {
 		$VirChrP{$_}=1 for ($p-$bias)..($p+$bias);
 	}
 
-	my (%tID,%Result);
+	my (%tID,%Result,%FragLength);
 	for (@{$main::Config->{'DataFiles'}->{'='}}) {
 		/([^.]+)\.(\d)/ or die;
 		$tID{$1}{$2} = $_;
 	}
 	for my $k (keys %tID) {
 		my $myAnaf = "$main::RootPath/${main::ProjectID}_analyse/$k.analyse";
+		my $myGrepf = "$main::RootPath/${main::ProjectID}_grep/$k.bam.grep";
 		print "[$myAnaf]\n";
 		print OUT "[$myAnaf]\n";
+		open IN,'<',$myGrepf or die;
+		while (<IN>) {
+			chomp;
+			my @LineDat = split /\t/,$_;
+			if ($LineDat[5] ne 'N') {
+				my $flen1 = length $LineDat[5];
+				++$FragLength{$k}{$flen1};
+				++$FragLength{'_._'}{$flen1};
+			}
+			if ($LineDat[7] ne 'N') {
+				my $flen2 = length $LineDat[7];
+				++$FragLength{$k}{$flen2};
+				++$FragLength{'_._'}{$flen2};
+			}
+		}
+		close IN;
 		open ANA,'<',$myAnaf or die;
 		while (<ANA>) {
 			my $flag = 0;
@@ -627,6 +644,7 @@ sub do_check {
 		}
 		close ANA;
 	}
+	ddx \%FragLength;
 	ddx \%Result;
 }
 
