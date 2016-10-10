@@ -653,8 +653,10 @@ if ($DEBGUHERE) {
 #print "$mtype $i->[9] $YC\n";
 		my ($firstSC,$seqCIGAR) = getSeqCIGAR($minLeft,$i);
 		my $offset = $i->[3] - $minLeft - $firstSC;
+		#no warnings 'substr';	# 嘛，就酱suppress掉,反正咱给后人留错误提示了 http://perldoc.perl.org/warnings.html#Category-Hierarchy
 		for my $p (@usingPoses) {
 			my ($tlen,$tmp,$vseq,$vqual,$t)=(0);
+			my $readlen = length $i->[9];
 			if ($p > 0 and $p < length($seqCIGAR)) {	# M]S
 				$tmp = substr($seqCIGAR,$p+1) or next;
 				# unless ($tmp) {
@@ -669,6 +671,14 @@ if ($DEBGUHERE) {
 				if (defined $1) {
 					$tlen = length $1;
 					$t = $p+1 -$offset;
+					my $tl = $readlen - $t;
+					if (abs($t) >= $readlen) {
+						#ddx $i; print "-+->Off:$offset, Start:$t, Len:$tlen\n";
+						#$tlen = $tl;
+						print STDERR ']';
+						next;	# CNS部分，不容有失，这个偶发问题暂时跳过
+						#$t = -$readlen;	# 修改后Fk150_m2D的TP下降，是故，冒烟吧。
+					}
 					$vseq = substr $i->[9],$t,$tlen;
 					$vqual = substr $i->[10],$t,$tlen;
 				}
@@ -678,6 +688,12 @@ if ($DEBGUHERE) {
 				if (defined $1) {
 					$tlen = length $1;
 					$t = -$p-1 - $tlen -$offset;
+					if (abs($t) >= $readlen) {
+						#ddx $i; print "--->Off:$offset, Start:$t, Len:$tlen\n";
+						print STDERR '[';
+						next;	# 不想倒着算了
+						#$t = $readlen-1;
+					}
 					$vseq = substr $i->[9],$t,$tlen;
 					$vqual = substr $i->[10],$t,$tlen;
 				}
@@ -814,6 +830,12 @@ sub mergehash($$) {
 			$sink->{$k} = $in->{$k};
 		}
 	}
+}
+
+sub sortWsum {
+    if ($a eq '=Sum=') { return -1; }
+    elsif ($b eq '=Sum=') { return 1; }
+    else { return $a cmp $b; }
 }
 
 1;

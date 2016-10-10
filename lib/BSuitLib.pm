@@ -171,7 +171,7 @@ sub do_grep($) {
 	#   "s01_P" => { 1 => "s01_P.1", 2 => "s01_P.2" },
 	for my $k (keys %tID) {
 		my $myBamf = "$main::RootPath/${main::ProjectID}_grep/$k.bam";
-		print "[$myBamf]\n";
+		print "[$myBamf] ";	# 内部有错误示意。换行后移
 		open OUT,'>',"${myBamf}.grep" or die "Error opening ${myBamf}.grep: $!\n";
 		open( IN,"-|","$main::PathPrefix samtools view $myBamf") or die "Error opening $myBamf: $!\n";
 		my ($lastgid,@hReads,@vReads);
@@ -230,6 +230,7 @@ sub do_grep($) {
 		}
 		close IN;
 		close OUT;
+		print "\n";
 	}
 }
 
@@ -585,12 +586,12 @@ sub do_check {
 			if ($LineDat[5] ne 'N') {
 				my $flen1 = length $LineDat[5];
 				++$FragLength{$k}{$flen1};
-				++$FragLength{'_._'}{$flen1};
+				++$FragLength{'=Sum='}{$flen1};
 			}
 			if ($LineDat[7] ne 'N') {
 				my $flen2 = length $LineDat[7];
 				++$FragLength{$k}{$flen2};
-				++$FragLength{'_._'}{$flen2};
+				++$FragLength{'=Sum='}{$flen2};
 			}
 		}
 		close IN;
@@ -646,6 +647,56 @@ sub do_check {
 	}
 	ddx \%FragLength;
 	ddx \%Result;
+	open P,'>',"$main::RootPath/${main::ProjectID}_plot.dat" or die;
+	open PH,'>',"$main::RootPath/${main::ProjectID}_plot.sh" or die;
+	print PH "#!/bin/bash\ngnuplot -persist <<-'EOFP1'
+	set xlabel \"Length\"
+	set ylabel 'Count'
+	set title 'Histgram of Identified Fragments'
+	set term svg
+	set output \"$main::RootPath/${main::ProjectID}_plot.svg\"
+
+	infile = '$main::RootPath/${main::ProjectID}_plot.dat'
+	tempfile = '$main::RootPath/${main::ProjectID}_plot.tmp'\n",
+	'stats infile u 1:2 nooutput
+	blocks = STATS_blocks
+
+	set print tempfile
+	first_y = ""
+	first_x = ""
+	do for[i=0:blocks-1] {
+	    stats infile index i u (first_x=($0==1)?sprintf("%s %f",first_x,$1):first_x,first_y=($0==1)?sprintf("%s %f",first_y,$2):first_y,$1):2 nooutput
+	    print sprintf("%f %f",STATS_pos_max_y,STATS_max_y) 
+	}
+	print ""
+	print ""
+	do for[i=1:blocks] {
+	    print sprintf("%s %s",word(first_x,i),word(first_y,i))
+	}
+	set print
+	set key outside;
+	set key right top;
+	set logscale y
+	plot for[i=0:blocks-1] infile i i u 1:2 w lines title columnheader(1),\
+	     for[i=0:1] tempfile i i u 1:2:($0+1) w points pt (i==0?7:9) lc variable not
+	';
+	my @IDs = sort sortWsum keys %FragLength;
+	for my $k (0 .. $#IDs) {
+		my $id = $IDs[$k];
+		$id =~ s/=//g;
+		print P "'$id'\n";
+		for my $i (sort {$a <=> $b} keys %{$FragLength{$IDs[$k]}}) {
+			print P "$i\t$FragLength{$IDs[$k]}{$i}\n";
+		}
+		if ($k != $#IDs) {
+			print P "\n\n";
+		}
+	}
+	close P;
+	print PH "\nEOFP1\n";
+	close PH;
+	chmod 0755,"$main::RootPath/${main::ProjectID}_plot.sh";
+	system "$main::RootPath/${main::ProjectID}_plot.sh";
 }
 
 sub do_analyse0 {

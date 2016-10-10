@@ -11,6 +11,7 @@ use simVirusInserts;	# 同时输出甲基化与非甲基化的结果。
 
 my $RefNratioMax = 0.01;	# /Nn/
 our $RefMratioMax = 0.02;	# masked as lower case in *.mfa.gz
+($RefNratioMax,$RefMratioMax)=(0,0);	# 现在需要更好的结果，です！
 
 die "Simulate Directional libraries of Bisulfite-Sequencing data.\nUsage: $0 <Host> <Virus> <Outprefix> [ReadLen=90 [Ticks.ini]]\nInvoke as: mkdir sim90 && cd sim90 && $0 && cd ..\n" if @ARGV <3;
 
@@ -55,7 +56,7 @@ my $LongLen = int(0.5 + $ReadLen*4/3);
 my @PEins = (100,150,200,420);
 my $maxPEins = 750;	# [77,96]
 if ($ReadLen > 96) {
-	@PEins = (150,220,350,500);
+	@PEins = (150,220,350,530);
 	$maxPEins = 500;
 }
 if ($ReadLen < 77) {
@@ -91,6 +92,17 @@ if (defined $TicksINI and -f $TicksINI) {
 			$pVirticks = \@dat;
 			print STDERR "Vir:",scalar @dat,', ';
 		}
+	}
+	my $virtickmax = $#$pVirticks;
+	if ($virtickmax < $#$pRefticks) {
+		for my $i ( (1+$virtickmax) .. $#$pRefticks ) {
+			my $j = int($i - 0.8*$virtickmax);	# must use `$virtickmax` instead of `$#$pVirticks` !
+			while ( abs($j)>$virtickmax ) {
+				$j = abs($j) - $virtickmax;
+			}
+			$pVirticks->[$i] = $pVirticks->[$j];
+		}
+		print STDERR "Vir padded. ";
 	}
 	print STDERR "\b\b.\n";
 } else {
