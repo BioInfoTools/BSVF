@@ -56,27 +56,35 @@ sub do_pre() {
 		warn "[!] Already Read References Pairs:[$main::HostRefName,$main::VirusRefName].\n";
 	}
 	#ddx \$main::RefConfig;
+	my $cmd0 = "$main::PathPrefix samtools faidx $Refile";
+	my $cmd1 = "$main::PathPrefix $RealBin/bin/bwameth.py index $Refile";
+	my $cmd2 = "python2 $RealBin/bin/BSseeker2/bs_seeker2-build.py --aligner bowtie2 -f $Refile -d ${Refile}2";
+	warn "[!] Run following to build index:\n$cmd0\n$cmd1\n$cmd2\n";
 	unless ($main::DISABLE_REF_INDEX) {
 		warn "[!] Building index for [$Refile].\n";
-		system("$main::PathPrefix $RealBin/bin/bwameth.py index $Refile");	# unless -s $Refile.'.bwameth.c2t.sa';
+		system($cmd0) unless -s $Refile.'.fai';
+		system($cmd1);	# unless -s $Refile.'.bwameth.c2t.sa';
+		system($cmd2);
 	} else {
 		warn "[!] Bwameth.py Index Building skipped for [$Refile].\n";
 	}
-	system("$main::PathPrefix samtools faidx $Refile") unless -s $Refile.'.fai';
 }
 
 sub do_aln() {
 	my $Refilename = warnFileExist($main::RefConfig->{$main::RefFilesSHA}->{'Refilename'});
 	#warn "$Refilename\n";
 	my (%tID,%FQc,%maxReadNum);
-	for (@{$main::Config->{'DataFiles'}->{'='}}) {
+	for (@{$main::Config->{$main::FileData}->{'='}}) {
 		/([^.]+)\.(\d)/ or die;
 		$tID{$1}{$2} = $_;
-		@{$FQc{$1}{$2}} = split /\s*,\s*/,$main::Config->{'DataFiles'}->{$_};
+		@{$FQc{$1}{$2}} = split /\s*,\s*/,$main::Config->{$main::FileData}->{$_};
 		$maxReadNum{$1} = 0 unless exists $maxReadNum{$1};
 		$maxReadNum{$1} = $2 if $maxReadNum{$1} < $2;
 	}
 	#ddx \%tID;
+#	if ($main::FileData eq 'Base4Files') {
+#		;
+#	}
 	File::Path::make_path("$main::RootPath/${main::ProjectID}_aln",{verbose => 0,mode => 0755});
 	open O,'>',"$main::RootPath/${main::ProjectID}_aln.sh" or die $!;
 	print O "#!/bin/sh\n\nexport $main::PathPrefix\n\n";
@@ -94,16 +102,23 @@ sub do_aln() {
 	}
 	#ddx \%FQc;
 	for my $k (keys %tID) {
-		#my @FQ1c = split /\s*,\s*/,$main::Config->{'DataFiles'}->{$tID{$k}{1}};
-		#my @FQ2c = split /\s*,\s*/,$main::Config->{'DataFiles'}->{$tID{$k}{2}};
+		#my @FQ1c = split /\s*,\s*/,$main::Config->{$main::FileData}->{$tID{$k}{1}};
+		#my @FQ2c = split /\s*,\s*/,$main::Config->{$main::FileData}->{$tID{$k}{2}};
 		my @FQ1c = @{$FQc{$k}{1}}; my @FQ2c = @{$FQc{$k}{2}};
-		die "[x]  DataFiles not paired ! [@FQ1c],[@FQ2c]\n" unless $#FQ1c == $#FQ1c;
-		my $cmd;
+		die "[x]  $main::FileData not paired ! [@FQ1c],[@FQ2c]\n" unless $#FQ1c == $#FQ1c;
+		my ($cmd,$cmd2);
 		if (@FQ1c == 1) {
 			$cmd = <<"CMD";
 $RealBin/bin/bwameth.py --reference $Refilename -t 24 --read-group $k -p $main::RootPath/${main::ProjectID}_aln/$k @{[warnFileExist($FQ1c[0],$FQ2c[0])]} 2>$main::RootPath/${main::ProjectID}_aln/$k.log
 CMD
-			print O $cmd;
+			$cmd2 = <<"CMD";
+python2 $RealBin/bin/BSseeker2/bs_seeker2-align.py --aligner bowtie2 -d ${Refilename}2 -g $Refilename --bt2--rg-id $k -1 $FQ1c[0] -2 $FQ2c[0] -o $main::RootPath/${main::ProjectID}_aln/$k.bam >/dev/null
+CMD
+			if ($main::Aligner eq 'bwa-meth') {
+				print O $cmd;
+			} elsif ($main::Aligner eq 'BSseeker2') {
+				print O $cmd2;
+			} else {die;}
 		} else {
 			my @theBams;
 			for my $i (0 .. $#FQ1c) {
@@ -112,8 +127,15 @@ CMD
 				$cmd = <<"CMD";
 $RealBin/bin/bwameth.py --reference $Refilename -t 24 --read-group '\@RG\\tID:${k}_${i}_${fID}\\tSM:$k' -p $main::RootPath/${main::ProjectID}_aln/${k}_${i}_${fID} @{[warnFileExist($FQ1c[$i],$FQ2c[$i])]} 2>$main::RootPath/${main::ProjectID}_aln/${k}_${i}_${fID}.log
 CMD
+				$cmd2 = <<"CMD";
+python2 $RealBin/bin/BSseeker2/bs_seeker2-align.py --aligner bowtie2 -d ${Refilename}2 -g $Refilename --bt2--rg-id '\@RG\\tID:${k}_${i}_${fID}\\tSM:$k' -1 $FQ1c[$i] -2 $FQ2c[$i] -o $main::RootPath/${main::ProjectID}_aln/${k}_${i}_${fID}.bam >/dev/null
+CMD
 				push @theBams,"$main::RootPath/${main::ProjectID}_aln/${k}_${i}_${fID}.bam";
-				print O $cmd;
+				if ($main::Aligner eq 'bwa-meth') {
+					print O $cmd;
+				} elsif ($main::Aligner eq 'BSseeker2') {
+					print O $cmd2;
+				} else {die;}
 			}
 			my $theBamsJ = join(' ',@theBams);
 			$cmd = <<"CMD";
@@ -163,7 +185,7 @@ CMD
 sub do_grep($) {
 	my $cfgfile = $_[0];
 	my (%tID,%tFH);
-	for (@{$main::Config->{'DataFiles'}->{'='}}) {
+	for (@{$main::Config->{$main::FileData}->{'='}}) {
 		/([^.]+)\.(\d)/ or die;
 		$tID{$1}{$2} = $_;
 	}
@@ -185,14 +207,14 @@ sub do_grep($) {
 			#print $thisGroup,"\t",join("][",@dat),"\n";
 			if ($lastgid and ($lastgid != $thisGroup)) {
 				my $skipflag = 0;
-				if ($main::GrepMergeBetter) {
+				if ($main::GrepMergeBetter and $main::Aligner eq 'bwa-meth') {
 					$skipflag = 1 if ($fhReads < 1 or $rhReads < 1);
 				} else {
 					$skipflag = 1 if @hReads < 2;
 				}
 #print "$skipflag $lastgid <- $thisGroup\n";
 				unless ($skipflag) {
-					my $MergedHds = grepmerge(\@hReads);
+					my $MergedHds = grepmerge(\@hReads,$main::Aligner);
 					#ddx $MergedHds;
 					my @Keys = sort {$b <=> $a} keys %{$MergedHds};
 					if (@Keys == 1) {
@@ -237,7 +259,7 @@ sub do_grep($) {
 sub do_grep0($) {
 	my $cfgfile = $_[0];
 	my (%tID,%tFH);
-	for (@{$main::Config->{'DataFiles'}->{'='}}) {
+	for (@{$main::Config->{$main::FileData}->{'='}}) {
 		/([^.]+)\.(\d)/ or die;
 		$tID{$1}{$2} = $_;
 	}
@@ -424,7 +446,7 @@ sub do_grep0($) {
 sub do_analyse {
 	my $Refilename = warnFileExist($main::RefConfig->{$main::RefFilesSHA}->{'Refilename'});
 	my (%tID,%tFH);
-	for (@{$main::Config->{'DataFiles'}->{'='}}) {
+	for (@{$main::Config->{$main::FileData}->{'='}}) {
 		/([^.]+)\.(\d)/ or die;
 		$tID{$1}{$2} = $_;
 	}
@@ -570,7 +592,7 @@ sub do_check {
 	}
 
 	my (%tID,%Result,%FragLength);
-	for (@{$main::Config->{'DataFiles'}->{'='}}) {
+	for (@{$main::Config->{$main::FileData}->{'='}}) {
 		/([^.]+)\.(\d)/ or die;
 		$tID{$1}{$2} = $_;
 	}
@@ -702,7 +724,7 @@ sub do_check {
 sub do_analyse0 {
 	my $Refilename = warnFileExist($main::RefConfig->{$main::RefFilesSHA}->{'Refilename'});
 	my (%tID,%tFH);
-	for (@{$main::Config->{'DataFiles'}->{'='}}) {
+	for (@{$main::Config->{$main::FileData}->{'='}}) {
 		/([^.]+)\.(\d)/ or die;
 		$tID{$1}{$2} = $_;
 	}

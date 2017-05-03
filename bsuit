@@ -1,6 +1,7 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+#use Getopt::Std;
 
 #use FindBin 1.51 qw($RealBin);
 =pod
@@ -27,6 +28,9 @@ use Galaxy::IO::INI;
 use Galaxy::Data;
 use Data::Dump qw(ddx);
 
+#our %opts;
+#getopts('oif:', \%opts);
+
 my %Cmd2Fun = (
 	'prepare' => \&do_pre,
 	'aln' => \&do_aln,
@@ -51,7 +55,13 @@ if (@ARGV < 2) {
 
 my $cmd=lc shift;
 my $cfgfile=shift;
+my $base4=shift;
+our $FileData = 'DataFiles';
 die "[!]Config File [$cfgfile] NOT found !\n" unless -f $cfgfile;
+if (defined $base4) {
+	warn "[!]Switch to use simulated WGS data.\n";
+	$FileData = 'Base4Files';
+}
 
 unless (exists $Cmd2Fun{$cmd} or $cmd eq 'check') {
 	warn "[x]Unknown Command: [$cmd] !\n";
@@ -87,6 +97,8 @@ our $RootPath = $Config->{'Output'}->{'WorkDir'};
 $RootPath =~ s/[\/\\]+$//g;
 our $ProjectID = $Config->{'Output'}->{'ProjectID'};
 warn "[!] Working on: [$ProjectID] @ [$RootPath]\n";
+our $Aligner = $Config->{'Parameters'}->{'Aligner'} || 'bwa-meth';
+warn "[!] Aligner is [$Aligner].\n";
 
 if (grep /^sv1$/i,@ARGV) {
 	my @SDs = grep /\.SD$/,keys(%{$Config->{'InsertSizes'}});
@@ -94,6 +106,10 @@ if (grep /^sv1$/i,@ARGV) {
 		$Config->{'InsertSizes'}->{$_} = 1;
 	}
 	warn "[!] All ",scalar(@SDs)," SD(s) are set to 1.\n";
+}
+
+unless ( -f "$RealBin/bin/water" ) {
+	die "[x] Cannot find \"$RealBin/bin/water\" !\n";
 }
 
 our $HostRefName = basename($Config->{'RefFiles'}->{'HostRef'});

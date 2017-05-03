@@ -528,7 +528,7 @@ sub getSeqCIGAR($$) {
 	}
 	return ($firstSC,$seqCIGAR);
 }
-sub grepmerge($) {
+sub grepmerge($$) {
 	#   [
 	#     [
 	#       "sf167_E_Ref_727851_728000_728150_Vir_+_214_333_R_150_90",
@@ -658,19 +658,32 @@ if ($DEBGUHERE) {
 	}
 	my %Bases;
 	for my $i (@clipReads) {
-		my ($YC) = grep /^YC:Z:/,@$i;
 		my $mtype;
-		if ($i->[1] & 16) {	# r
-			if ($YC eq 'YC:Z:CT') {
-				$mtype = 'GA';	# R
-			} elsif ($YC eq 'YC:Z:GA') {
+		if ($_[1] eq 'bwa-meth') {
+			my ($YC) = grep /^YC:Z:/,@$i;
+			if ($i->[1] & 16) {	# r, 用`YD:Z:f`似乎更好。目前没管PBAT的。
+				if ($YC eq 'YC:Z:CT') {
+					$mtype = 'GA';	# R
+				} elsif ($YC eq 'YC:Z:GA') {
+					$mtype = 'CT';	# Y
+				} else {die;}
+			} else {	# f
+				if ($YC eq 'YC:Z:CT') {
+					$mtype = 'CT';
+				} elsif ($YC eq 'YC:Z:GA') {
+					$mtype = 'GA';
+				} else {die;}
+			}
+		} elsif ($_[1] eq 'BSseeker2') {
+			my ($XO) = grep /^XO:Z:/,@$i;
+			if ($XO eq 'XO:Z:+FR') {
+				$mtype = 'CT';	# R
+			} elsif ($XO eq 'XO:Z:-FR') {
+				$mtype = 'GA';	# Y
+			} elsif ($XO eq 'XO:Z:+RF') {
+				$mtype = 'GA';	# Y
+			} elsif ($XO eq 'XO:Z:-RF') {
 				$mtype = 'CT';	# Y
-			} else {die;}
-		} else {	# f
-			if ($YC eq 'YC:Z:CT') {
-				$mtype = 'CT';
-			} elsif ($YC eq 'YC:Z:GA') {
-				$mtype = 'GA';
 			} else {die;}
 		}
 #print "$mtype $i->[9] $YC\n";
@@ -679,6 +692,9 @@ if ($DEBGUHERE) {
 		for my $p (@usingPoses) {
 			my ($tlen,$tmp,$vseq,$vqual,$t)=(0);
 			my $readlen = length $i->[9];
+			if ($_[1] eq 'BSseeker2' and $i->[10] eq '*') {
+				$i->[10] = '@' x $readlen;
+			}
 			if ($p > 0 and $p < length($seqCIGAR)) {	# M]S
 				$tmp = substr($seqCIGAR,$p+1) or next;
 				# unless ($tmp) {
@@ -742,6 +758,9 @@ if ($DEBGUHERE) {
 			}
 		} else {
 			$absPos = $p + $minLeft;
+			if ($_[1] eq 'BSseeker2') {
+				next unless exists $Bases{$p};	# '78S5M1D30M1D17M20S' caused trouble
+			}
 			@theReads = @{$Bases{$p}};
 		}
 		my $mergstr = mergeStr(\@theReads);
