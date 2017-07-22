@@ -7,14 +7,12 @@ For directional libraries only. PBAT and indirectional libraries are _NOT_ suppo
 
 ## Dependencies
 
-`bwa-meth` depends on 
+[bwa-meth 0.10](https://github.com/brentp/bwa-meth/tree/0a2f9fc7c3fd3c99c4212941c94be73c9c865bb1) depends on 
 
  + python 2.7+ (including python3)
    - `toolshed` library. can be installed with: 
       * `easy_install toolshed` or
       * `pip install toolshed`
-
-   - You can install `bwa-meth` accroding to https://github.com/brentp/bwa-meth
 
  + samtools command on the `$PATH` (https://github.com/samtools/samtools)
 
@@ -188,3 +186,18 @@ clustername contig-number chrpoint virus-integration
 cluster1	contig1	chr1:3000	virus:+:200-300
 cluster1	contig2	chr2:4000	viurs:-:300-400
 ````
+
+## ToDo
+
+Compare with [ViralFusionSeq [VFS]](https://sourceforge.net/projects/viralfusionseq/) and [VirusFinder 2](https://bioinfo.uth.edu/VirusFinder/) on normal WGS data.
+
+## See also
+
+* [Bismark](https://www.bioinformatics.babraham.ac.uk/projects/bismark/) [0.18.1](https://github.com/FelixKrueger/Bismark/releases)
+* [SVDetect](https://sourceforge.net/projects/svdetect/) [r0.8b](https://sourceforge.net/projects/svdetect/files/SVDetect/0.80/)
+* [ViralFusionSeq](https://sourceforge.net/projects/viralfusionseq/) and [Virus-Clip](http://web.hku.hk/~dwhho/Virus-Clip.zip)
+* [VirusSeq](http://odin.mdacc.tmc.edu/~xsu1/VirusSeq.html), which uses [MOSAIK](https://github.com/wanpinglee/MOSAIK) aligner.
+* [VirusFinder 2 (VERSE)](https://bioinfo.uth.edu/VirusFinder/)
+* [Vy-PER](http://www.ikmb.uni-kiel.de/vy-per/)
+* [seeksv](https://github.com/qiukunlong/seeksv)
+* [BS-Seeker2](https://github.com/BSSeeker/BSseeker2)
