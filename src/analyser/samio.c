@@ -101,8 +101,17 @@ int do_grep() {
 			while ((r = sam_read1(in, h, b)) >= 0) {
 				int8_t flag = false;
 				const bam1_core_t *c = &b->core;
+				if (c->qual < myConfig.minBamQual) {
+					continue;
+				}
 				if (c->n_cigar) {
 					uint32_t *cigar = bam_get_cigar(b);
+					int i = c->n_cigar; --i;
+					if ( (bam_cigar_opchr(cigar[0])=='S' && bam_cigar_oplen(cigar[0]) >= myConfig.minGrepSlen) || 
+						 (bam_cigar_opchr(cigar[i])=='S' && bam_cigar_oplen(cigar[i]) >= myConfig.minGrepSlen)    ) {
+						flag = true;
+					}
+/* We only need /\d+S/ on both terminal, NOT inside.
 					for (int i = 0; i < c->n_cigar; ++i) {
 						if (bam_cigar_opchr(cigar[i])=='S') {	// soft clipping
 							if ( bam_cigar_oplen(cigar[i]) >= myConfig.minGrepSlen ) {
@@ -110,6 +119,7 @@ int do_grep() {
 							}
 						}
 					}
+*/
 				}
 				if (flag && ChrIsHum[c->tid]) {	// Now, skip Virus items.
 					//bam_copy1(bR1, b);
@@ -183,9 +193,14 @@ int do_grep() {
 							fprintf(fsdump,"[%u %s]\nHumRange=%s:%d-%d\n", blockid, BamID, h->target_name[(pierCluster->HumanRange).tid], (pierCluster->HumanRange).pos, (pierCluster->HumanRange).endpos);
 							fprintf(fsdump,"VirRange=%s:%d-%d\n", h->target_name[(pierCluster->VirusRange).tid], (pierCluster->VirusRange).pos, (pierCluster->VirusRange).endpos);
 #endif
-							fprintf(fs,"[%u]\nBamID=%s\nHumRange=%s:%d-%d\nVirRange=%s:%d-%d\n",blockid, BamID,
-							h->target_name[(pierCluster->HumanRange).tid], (pierCluster->HumanRange).pos, (pierCluster->HumanRange).endpos,
-							h->target_name[(pierCluster->VirusRange).tid], (pierCluster->VirusRange).pos, (pierCluster->VirusRange).endpos);
+							fprintf(fs,"[%u]\nBamID=%s\nHumRange=%s:%d-%d\n",blockid, BamID,
+							h->target_name[(pierCluster->HumanRange).tid], (pierCluster->HumanRange).pos, (pierCluster->HumanRange).endpos);
+							if ( (pierCluster->VirusRange).pos == 0 && (pierCluster->VirusRange).endpos == 0 ) {
+								fprintf(fs,"VirRange=NA\n");
+							} else {
+								fprintf(fs,"VirRange=%s:%d-%d\n", h->target_name[(pierCluster->VirusRange).tid],
+									(pierCluster->VirusRange).pos, (pierCluster->VirusRange).endpos);
+							}
 							for (size_t i=0; i<kv_size(pierCluster->Reads);++i) {
 								bam1_t *bi = kv_A(pierCluster->Reads, i);
 								bam_aux_append(bi, "Zc", 'i', sizeof(uint32_t), (uint8_t*)&blockid);

@@ -56,18 +56,17 @@ sub do_pre() {
 		warn "[!] Already Read References Pairs:[$main::HostRefName,$main::VirusRefName].\n";
 	}
 	#ddx \$main::RefConfig;
-	my $cmd0 = "$main::PathPrefix samtools faidx $Refile";
-	my $cmd1 = "$main::PathPrefix $RealBin/bin/bwameth.py index $Refile";
-	my $cmd2 = "python2 $RealBin/bin/BSseeker2/bs_seeker2-build.py --aligner bowtie2 -f $Refile -d ${Refile}2";
-	warn "[!] Run following to build index:\n$cmd0\n$cmd1\n$cmd2\n";
-	unless ($main::DISABLE_REF_INDEX) {
-		warn "[!] Building index for [$Refile].\n";
-		system($cmd0) unless -s $Refile.'.fai';
-		system($cmd1);	# unless -s $Refile.'.bwameth.c2t.sa';
-		system($cmd2);
-	} else {
-		warn "[!] Bwameth.py Index Building skipped for [$Refile].\n";
-	}
+	my @cmd;
+	open O,'>',"$main::RootPath/${main::ProjectID}_index.sh" or die $!;
+	print O "#!/bin/sh\n\nexport $main::PathPrefix\n\n";
+	push @cmd,"samtools faidx $Refile";
+	push @cmd,"$RealBin/bin/bwameth.py index $Refile";
+	push @cmd,"python2 $RealBin/bin/BSseeker2/bs_seeker2-build.py --aligner bowtie2 -f $Refile -d ${Refile}2";
+	push @cmd,"bwa index $Refile";
+	print O join("\n",@cmd),"\n";
+	close O;
+	chmod 0755,"$main::RootPath/${main::ProjectID}_index.sh";
+	warn "[!] Please run [$main::RootPath/${main::ProjectID}_index.sh] to build index.\n";
 }
 
 sub do_aln() {
@@ -87,7 +86,7 @@ sub do_aln() {
 #	}
 	File::Path::make_path("$main::RootPath/${main::ProjectID}_aln",{verbose => 0,mode => 0755});
 	open O,'>',"$main::RootPath/${main::ProjectID}_aln.sh" or die $!;
-	print O "#!/bin/sh\n\nexport $main::PathPrefix\n\n";
+	print O "#!/bin/sh\n\nexport THREADSCNT=24\nexport $main::PathPrefix\n\n";
 
 	for my $k (keys %tID) {
 		if ($maxReadNum{$k} == 1) {	# SE
@@ -106,18 +105,23 @@ sub do_aln() {
 		#my @FQ2c = split /\s*,\s*/,$main::Config->{$main::FileData}->{$tID{$k}{2}};
 		my @FQ1c = @{$FQc{$k}{1}}; my @FQ2c = @{$FQc{$k}{2}};
 		die "[x]  $main::FileData not paired ! [@FQ1c],[@FQ2c]\n" unless $#FQ1c == $#FQ1c;
-		my ($cmd,$cmd2);
+		my ($cmd,$cmd2,$cmd3);
 		if (@FQ1c == 1) {
 			$cmd = <<"CMD";
-$RealBin/bin/bwameth.py --reference $Refilename -t 24 --read-group $k -p $main::RootPath/${main::ProjectID}_aln/$k @{[warnFileExist($FQ1c[0],$FQ2c[0])]} 2>$main::RootPath/${main::ProjectID}_aln/$k.log
+$RealBin/bin/bwameth.py --reference $Refilename -t \${THREADSCNT} --read-group $k @{[warnFileExist($FQ1c[0],$FQ2c[0])]} 2>$main::RootPath/${main::ProjectID}_aln/$k.log | samtools view -bS - | samtools sort -n -m 2415919104 - -T $main::RootPath/${main::ProjectID}_aln/$k -o $main::RootPath/${main::ProjectID}_aln/$k.bam
 CMD
 			$cmd2 = <<"CMD";
-python2 $RealBin/bin/BSseeker2/bs_seeker2-align.py --aligner bowtie2 -d ${Refilename}2 -g $Refilename --bt2--rg-id $k -1 $FQ1c[0] -2 $FQ2c[0] -o $main::RootPath/${main::ProjectID}_aln/$k.bam >/dev/null
+python2 $RealBin/bin/BSseeker2/bs_seeker2-align.py --aligner bowtie2 -d ${Refilename}2 -g $Refilename --bt2--rg-id $k -1 $FQ1c[0] -2 $FQ2c[0] -o $main::RootPath/${main::ProjectID}_aln/$k.bam --temp_dir=$main::RootPath/${main::ProjectID}_aln >/dev/null
+CMD
+			$cmd3 = <<"CMD";
+bwa mem -MY $Refilename -t \${THREADSCNT} -R '\@RG\\tID:$k\\tSM:$k' @{[warnFileExist($FQ1c[0],$FQ2c[0])]} 2>$main::RootPath/${main::ProjectID}_aln/$k.log | samtools view -bS - | samtools sort -n -m 2415919104 - -T $main::RootPath/${main::ProjectID}_aln/$k -o $main::RootPath/${main::ProjectID}_aln/$k.bam
 CMD
 			if ($main::Aligner eq 'bwa-meth') {
 				print O $cmd;
 			} elsif ($main::Aligner eq 'BSseeker2') {
 				print O $cmd2;
+			} elsif ($main::Aligner eq 'bwa') {
+				print O $cmd3;
 			} else {die;}
 		} else {
 			my @theBams;
@@ -125,16 +129,21 @@ CMD
 				my $fID = basename($FQ1c[$i]);
 				$fID =~ s/\.fq(\.gz)?$//i;
 				$cmd = <<"CMD";
-$RealBin/bin/bwameth.py --reference $Refilename -t 24 --read-group '\@RG\\tID:${k}_${i}_${fID}\\tSM:$k' -p $main::RootPath/${main::ProjectID}_aln/${k}_${i}_${fID} @{[warnFileExist($FQ1c[$i],$FQ2c[$i])]} 2>$main::RootPath/${main::ProjectID}_aln/${k}_${i}_${fID}.log
+$RealBin/bin/bwameth.py --reference $Refilename -t \${THREADSCNT} --read-group '\@RG\\tID:${k}_${i}_${fID}\\tSM:$k' @{[warnFileExist($FQ1c[$i],$FQ2c[$i])]} 2>$main::RootPath/${main::ProjectID}_aln/${k}_${i}_${fID}.log | samtools view -bS - | samtools sort -n -m 2415919104 - -T $main::RootPath/${main::ProjectID}_aln/${k}_${i}_${fID} -o $main::RootPath/${main::ProjectID}_aln/${k}_${i}_${fID}.bam
 CMD
 				$cmd2 = <<"CMD";
-python2 $RealBin/bin/BSseeker2/bs_seeker2-align.py --aligner bowtie2 -d ${Refilename}2 -g $Refilename --bt2--rg-id '\@RG\\tID:${k}_${i}_${fID}\\tSM:$k' -1 $FQ1c[$i] -2 $FQ2c[$i] -o $main::RootPath/${main::ProjectID}_aln/${k}_${i}_${fID}.bam >/dev/null
+python2 $RealBin/bin/BSseeker2/bs_seeker2-align.py --aligner bowtie2 -d ${Refilename}2 -g $Refilename --bt2--rg-id '\@RG\\tID:${k}_${i}_${fID}\\tSM:$k' -1 $FQ1c[$i] -2 $FQ2c[$i] -o $main::RootPath/${main::ProjectID}_aln/${k}_${i}_${fID}.bam --temp_dir=$main::RootPath/${main::ProjectID}_aln >/dev/null
+CMD
+			$cmd3 = <<"CMD";
+bwa mem -MY $Refilename -t \${THREADSCNT} -R '\@RG\\tID:${k}_${i}_${fID}\\tSM:$k' @{[warnFileExist($FQ1c[$i],$FQ2c[$i])]} 2>$main::RootPath/${main::ProjectID}_aln/${k}_${i}_${fID}.log | samtools view -bS - | samtools sort -n -m 2415919104 - -T $main::RootPath/${main::ProjectID}_aln/${k}_${i}_${fID} -o $main::RootPath/${main::ProjectID}_aln/${k}_${i}_${fID}.bam
 CMD
 				push @theBams,"$main::RootPath/${main::ProjectID}_aln/${k}_${i}_${fID}.bam";
 				if ($main::Aligner eq 'bwa-meth') {
 					print O $cmd;
 				} elsif ($main::Aligner eq 'BSseeker2') {
 					print O $cmd2;
+				} elsif ($main::Aligner eq 'bwa') {
+					print O $cmd3;
 				} else {die;}
 			}
 			my $theBamsJ = join(' ',@theBams);
@@ -176,6 +185,7 @@ CMD
 	$WorkINI->write("$main::RootPath/${main::ProjectID}_grep/ToGrep.ini");
 	my $cli = "$RealBin/bin/bsanalyser -p grep $main::RootPath/${main::ProjectID}_grep/ToGrep.ini";
 	print O "\n$cli\n";
+	print O "\n$RealBin/bsuit grep $main::fullcfgfile\n$RealBin/bsuit analyse $main::fullcfgfile\n";
 # Grep step0 End
 	close O;
 	chmod 0755,"$main::RootPath/${main::ProjectID}_aln.sh";
@@ -197,7 +207,7 @@ sub do_grep($) {
 		open OUT,'>',"${myBamf}.grep" or die "Error opening ${myBamf}.grep: $!\n";
 		open( IN,"-|","$main::PathPrefix samtools view $myBamf") or die "Error opening $myBamf: $!\n";
 		my ($lastgid,@hReads,@vReads);
-		my ($fhReads,$rhReads,$fvReads,$rvReads)=(0,0,0,0);	# /\bYD:Z:f\b/
+		my ($fhReads,$rhReads,$fvReads,$rvReads,$flagHV)=(0,0,0,0,0);	# /\bYD:Z:f\b/
 		while (<IN>) {
 			chomp;
 			my @dat = split /\t/;
@@ -213,7 +223,9 @@ sub do_grep($) {
 					$skipflag = 1 if @hReads < 2;
 				}
 #print "$skipflag $lastgid <- $thisGroup\n";
-				unless ($skipflag) {
+				if ($flagHV == 3) {
+					$flagHV = 0;
+				#unless ($skipflag)
 					my $MergedHds = grepmerge(\@hReads,$main::Aligner);
 					#ddx $MergedHds;
 					my @Keys = sort {$b <=> $a} keys %{$MergedHds};
@@ -237,12 +249,14 @@ sub do_grep($) {
 				$lastgid = $thisGroup;
 			}
 			if (/\bZd:Z:H\b/) {
+				$flagHV |= 1;
 				if ($dat[5] !~ /[IDH]/) {	# ignore [IDH] until 我有空写好 getDeriv()。
 					push @hReads,\@dat;
 					if (/\bYD:Z:f\b/) {++$fhReads}
 					else {++$rhReads;}
 				}
 			} elsif (/\bZd:Z:V\b/) {
+				$flagHV |= 2;
 				if ($dat[5] !~ /[IDH]/) {
 					push @vReads,\@dat;
 					if (/\bYD:Z:f\b/) {++$fvReads}
@@ -461,6 +475,23 @@ sub do_analyse {
 	}
 	close $FH;
 	close VIRUS;
+
+	my $tmptmpf = "$main::RootPath/${main::ProjectID}_grep/Greped.ini";
+	open TMPTMP,'<',$tmptmpf or die;
+	my %TMPtmp;
+	while (<TMPTMP>) {
+		/^\[(\d+)\]$/ or die;
+		my $id = $1;
+		<TMPTMP>;
+		<TMPTMP>;
+		$_=<TMPTMP>;
+		next if /^VirRange=NA$/;
+		chomp;
+		my $tmp = (split /:/,$_)[-1];
+		$TMPtmp{$id}=$tmp;
+	}
+	close TMPTMP;
+
 	for my $k (keys %tID) {
 		my $myGrepf = "$main::RootPath/${main::ProjectID}_grep/$k.bam.grep";
 		print "[$myGrepf]\n";
@@ -509,7 +540,8 @@ sub do_analyse {
 			#next unless defined $strand;
 			unless (defined $strand) {	# Well, we need more poistive.
 				#print OUT join("\t",@LineDat[0..3],'Virus','NA','0','0'),"\n";
-				$OutDat{$LineDat[1]}{$LineDat[2]} = [$LineDat[0],$LineDat[3],'Virus','NA','0','0'];
+				my @range = split /-/,$TMPtmp{$LineDat[0]};
+				$OutDat{$LineDat[1]}{$LineDat[2]} = [$LineDat[0],$LineDat[3],'Virus','NA',@range];
 				++$OutCnt[1];
 				next;
 			}
@@ -894,7 +926,7 @@ __END__
 samtools view -h /share/users/huxs/work/bsvir/bsI/SZ0010_aln/780_T.bam '*' | samtools bam2fq -O - | gzip -9 > /share/users/huxs/work/bsvir/bsI/SZ0010_aln/780_T.unmap.fq.gz
 samtools view -h /share/users/huxs/work/bsvir/bsI/SZ0010_aln/s01_P.bam '*'|samtools bam2fq -O -|gzip -9 > /share/users/huxs/work/bsvir/bsI/SZ0010_aln/s01_P.unmap.fq.gz &
 
-./bin/bwameth.py --reference /share/users/huxs/work/bsvir/HBV.AJ507799.2.fa -t 24 --read-group 780_T -p ~/work/bsvir/bsI/SZ0010_aln/780_T.unmap ~/work/bsvir/bsI/SZ0010_aln/780_T.unmap.fq.gz 2>~/work/bsvir/bsI/SZ0010_aln/780_T.unmap.log &    #/
-./bin/bwameth.py --reference /share/users/huxs/work/bsvir/HBV.AJ507799.2.fa -t 24 --read-group s01_P -p /share/users/huxs/work/bsvir/bsI/SZ0010_aln/s01_P.unmap /share/users/huxs/work/bsvir/bsI/SZ0010_aln/s01_P.unmap.fq.gz 2>/share/users/huxs/work/bsvir/bsI/SZ0010_aln/s01_P.unmap.log &
+./bin/bwameth.py --reference /share/users/huxs/work/bsvir/HBV.AJ507799.2.fa -t \${THREADSCNT} --read-group 780_T -p ~/work/bsvir/bsI/SZ0010_aln/780_T.unmap ~/work/bsvir/bsI/SZ0010_aln/780_T.unmap.fq.gz 2>~/work/bsvir/bsI/SZ0010_aln/780_T.unmap.log &    #/
+./bin/bwameth.py --reference /share/users/huxs/work/bsvir/HBV.AJ507799.2.fa -t \${THREADSCNT} --read-group s01_P -p /share/users/huxs/work/bsvir/bsI/SZ0010_aln/s01_P.unmap /share/users/huxs/work/bsvir/bsI/SZ0010_aln/s01_P.unmap.fq.gz 2>/share/users/huxs/work/bsvir/bsI/SZ0010_aln/s01_P.unmap.log &
 
 samtools view -h /share/users/huxs/work/bsvir/bsI/SZ0010_aln/780_T.bam 'gi|86261677|emb|AJ507799.2|'
