@@ -1,7 +1,9 @@
-# BSVF
+# BSVF 
 Bisulfite Sequencing Virus integration Finder
 
 ## Attention
+
+20170723
 
 For directional libraries only. PBAT and indirectional libraries are _NOT_ supported.
 
