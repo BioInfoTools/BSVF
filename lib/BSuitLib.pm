@@ -207,7 +207,7 @@ sub do_grep($) {
 		open OUT,'>',"${myBamf}.grep" or die "Error opening ${myBamf}.grep: $!\n";
 		open( IN,"-|","$main::PathPrefix samtools view $myBamf") or die "Error opening $myBamf: $!\n";
 		my ($lastgid,@hReads,@vReads);
-		my ($fhReads,$rhReads,$fvReads,$rvReads,$flagHV)=(0,0,0,0,0);	# /\bYD:Z:f\b/
+		my ($fhReads,$rhReads,$fvReads,$rvReads,$flagHV,$strandOdd,$strandEven)=(0,0,0,0,0,0,0);	# /\bYD:Z:f\b/
 		while (<IN>) {
 			chomp;
 			my @dat = split /\t/;
@@ -215,6 +215,15 @@ sub do_grep($) {
 			my $thisGroup = $1;
 #print "$lastgid <- $thisGroup\n";
 			#print $thisGroup,"\t",join("][",@dat),"\n";
+			if ($dat[6] ne '=') {	# 假设染色体不同就算一边人一边病毒(故也统计了两遍)。严格来说也要分染色体统计，但目前只是临时补充的 用sam文件推断病毒正负链插入 功能，正式版将恢复通过后面的动态规划比对来精确判断。
+				my $flagr = ($dat[1] & 16)>>4;
+				my $flagR = ($dat[1] & 32)>>5;
+				if ($flagr == $flagR) {
+					++$strandEven;	# 相同就在负链上
+				} else {
+					++$strandOdd;
+				}
+			}
 			if ($lastgid and ($lastgid != $thisGroup)) {
 				my $skipflag = 0;
 				if ($main::GrepMergeBetter and $main::Aligner eq 'bwa-meth') {
@@ -228,15 +237,22 @@ sub do_grep($) {
 				#unless ($skipflag)
 					my $MergedHds = grepmerge(\@hReads,$main::Aligner);
 					#ddx $MergedHds;
+					my $tmp = '.';
+					if ($strandEven > $strandOdd) {
+						$tmp = '-';
+					} elsif ($strandEven < $strandOdd) {
+						$tmp = '+';
+					}
+					($strandOdd,$strandEven)=(0,0);
 					my @Keys = sort {$b <=> $a} keys %{$MergedHds};
 					if (@Keys == 1) {
 						if ($Keys[0] > 0) {
-							print OUT join("\t",$lastgid,$hReads[0]->[2],$Keys[0],-1,@{$MergedHds->{$Keys[0]}},0,'N'),"\n";
+							print OUT join("\t",$lastgid,$hReads[0]->[2],$Keys[0],-1,@{$MergedHds->{$Keys[0]}},0,'N',$tmp),"\n";
 						} else {
-							print OUT join("\t",$lastgid,$hReads[0]->[2],-1,-$Keys[0],0,'N',@{$MergedHds->{$Keys[0]}}),"\n";
+							print OUT join("\t",$lastgid,$hReads[0]->[2],-1,-$Keys[0],0,'N',@{$MergedHds->{$Keys[0]}},$tmp),"\n";
 						}
 					} elsif (@Keys == 2) {
-						print OUT join("\t",$lastgid,$hReads[0]->[2],$Keys[0],-$Keys[1],@{$MergedHds->{$Keys[0]}},@{$MergedHds->{$Keys[1]}}),"\n";
+						print OUT join("\t",$lastgid,$hReads[0]->[2],$Keys[0],-$Keys[1],@{$MergedHds->{$Keys[0]}},@{$MergedHds->{$Keys[1]}},$tmp),"\n";
 					}
 					#print OUT join("\t",$lastgid,$hReads[0]->[2],$_,@{$MergedHds->{$_}}),"\n" for sort { $a <=> $b } keys %{$MergedHds};
 					#die;
@@ -495,7 +511,7 @@ sub do_analyse {
 	for my $k (keys %tID) {
 		my $myGrepf = "$main::RootPath/${main::ProjectID}_grep/$k.bam.grep";
 		print "[$myGrepf]\n";
-		my $outf = "$main::RootPath/${main::ProjectID}_analyse/$k.analyse";
+		my $outf = "$main::RootPath/${main::ProjectID}_analyse/.$k.analyse";
 		open IN,'<',$myGrepf or die;
 		open OUT,'>',$outf or die;
 		my (@OutCnt,%OutDat)=(0,0,0);
@@ -541,7 +557,7 @@ sub do_analyse {
 			unless (defined $strand) {	# Well, we need more poistive.
 				#print OUT join("\t",@LineDat[0..3],'Virus','NA','0','0'),"\n";
 				my @range = split /-/,$TMPtmp{$LineDat[0]};
-				$OutDat{$LineDat[1]}{$LineDat[2]} = [$LineDat[0],$LineDat[3],'Virus','NA',@range];
+				$OutDat{$LineDat[1]}{$LineDat[2]} = [$LineDat[0],$LineDat[3],'Virus',$LineDat[8],@range];	# 临时补丁
 				++$OutCnt[1];
 				next;
 			}
@@ -577,7 +593,54 @@ sub do_analyse {
 				++$OutCnt[2];
 			}
 		}
+		close IN; close OUT;
 		warn "[!]O: $OutCnt[0]+$OutCnt[1] => $OutCnt[2] in [$k], merged=",$OutCnt[0]+$OutCnt[1]-$OutCnt[2],".\n";
+
+		# Well, this is the f*cking reality. You know it.
+		my $outf2 = "$main::RootPath/${main::ProjectID}_analyse/$k.analyse";
+		open IN,'<',$outf or die;
+		open OUT,'>',$outf2 or die;
+		my %Results;
+		while (<IN>) {
+			chomp;
+			my @dat = split /\t/;
+			$Results{$dat[1]}{$dat[2]} = \@dat;
+		}
+		for my $chr (sort keys %Results) {
+			my @Poses = sort {$a<=>$b} keys %{$Results{$chr}};
+			if (@Poses == 1) {
+				print OUT join("\t",@{$Results{$chr}{$Poses[0]}}),"\n";
+				next;
+			}
+
+			my @TTT;
+			for my $i (0 .. $#Poses) {
+				if (($i == 0) or ($Poses[$i] - $Poses[$i-1] <= 20)) {
+					push @TTT,$Results{$chr}{$Poses[$i]};
+				} else {
+					if (@TTT) {
+						my (@Virus,@Hum);
+						for my $tt (@TTT) {
+							push @Hum,$tt->[2];
+							push @Hum,$tt->[3] if $tt->[3] != -1;
+							push @Virus,$tt->[6] if $tt->[6] != -1;
+							push @Virus,$tt->[7] if $tt->[7] != -1;
+						}
+						@Hum = sort {$a<=>$b} @Hum;
+						@Virus = sort {$a<=>$b} @Virus;
+						push @Hum,-1 if scalar @Hum == 1;
+						push @Virus,-1 if scalar @Virus == 1;
+						print OUT join("\t",$Results{$chr}{$Hum[0]}->[0],$chr,$Hum[0],$Hum[-1],$Results{$chr}{$Hum[0]}->[4],$Results{$chr}{$Hum[0]}->[5],$Virus[0],$Virus[-1]),"\n";
+					}
+					@TTT = ($Results{$chr}{$Poses[$i]});
+				}
+			}
+			if (@TTT) {
+				print OUT join("\t",@{$TTT[0]}),"\n";
+			}
+		}
+		close IN; close OUT;
+		# EOF this silly thing, which is favored by the mankind.
 	}
 }
 
