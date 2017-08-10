@@ -236,7 +236,22 @@ sub do_grep($) {
 					$flagHV = 0;
 				#unless ($skipflag)
 					my $MergedHds = grepmerge(\@hReads,$main::Aligner);
-					#ddx $MergedHds;
+				my $MergedVds = grepmerge(\@vReads,$main::Aligner);
+					#ddx [$MergedHds,$MergedVds];
+# BSuitLib.pm:240: [
+#   {
+#     180587608 => [
+#       19,
+#       "TTGCGAAAGCCCAAGATGATGGGATGGGAATACAGGTGCAATTTCCATCCGTAGGTTTTGTACAGCAACATGAGGGAAACATAGAGTTGCCTTGRRCRRRRRTCRTR",
+#     ],
+#   },
+#   {
+#     640 => [
+#              6,
+#              "CCAGATGCAATCTAATTAAACCCACCAGGTGTCTCCCCTCARRTTRRRRTRCCCCRTR",
+#            ],
+#   },
+# ]
 					my $tmp = '.';
 					if ($strandEven > $strandOdd) {
 						$tmp = '-';
@@ -245,16 +260,27 @@ sub do_grep($) {
 					}
 					($strandOdd,$strandEven)=(0,0);
 					my @Keys = sort {$b <=> $a} keys %{$MergedHds};
+				my @VKeys = sort {$b <=> $a} keys %{$MergedVds};
 					my @Vchrs = sort { $Vchr{$b} <=> $Vchr{$a} } keys %Vchr;
 					%Vchr = ();
+				my @Vposes=(-1,-1);
+				if (@VKeys == 1) {
+					if ($VKeys[0] > 0) {
+						@Vposes = ($VKeys[0],-1);
+					} else {
+						@Vposes = (-1,-$VKeys[0]);
+					}
+				} elsif (@VKeys == 2) {
+					@Vposes = ($VKeys[0],-$VKeys[1]);
+				}
 					if (@Keys == 1) {
 						if ($Keys[0] > 0) {
-							print OUT join("\t",$lastgid,$hReads[0]->[2],$Keys[0],-1,@{$MergedHds->{$Keys[0]}},0,'N',$tmp,$Vchrs[0]),"\n";
+							print OUT join("\t",$lastgid,$hReads[0]->[2],$Keys[0],-1,@{$MergedHds->{$Keys[0]}},0,'N',$tmp,$Vchrs[0],@Vposes),"\n";
 						} else {
-							print OUT join("\t",$lastgid,$hReads[0]->[2],-1,-$Keys[0],0,'N',@{$MergedHds->{$Keys[0]}},$tmp,$Vchrs[0]),"\n";
+							print OUT join("\t",$lastgid,$hReads[0]->[2],-1,-$Keys[0],0,'N',@{$MergedHds->{$Keys[0]}},$tmp,$Vchrs[0],@Vposes),"\n";
 						}
 					} elsif (@Keys == 2) {
-						print OUT join("\t",$lastgid,$hReads[0]->[2],$Keys[0],-$Keys[1],@{$MergedHds->{$Keys[0]}},@{$MergedHds->{$Keys[1]}},$tmp),"\n";
+						print OUT join("\t",$lastgid,$hReads[0]->[2],$Keys[0],-$Keys[1],@{$MergedHds->{$Keys[0]}},@{$MergedHds->{$Keys[1]}},$tmp,$Vchrs[0],@Vposes),"\n";
 					}
 					#print OUT join("\t",$lastgid,$hReads[0]->[2],$_,@{$MergedHds->{$_}}),"\n" for sort { $a <=> $b } keys %{$MergedHds};
 					#die;
@@ -557,15 +583,19 @@ sub do_analyse {
 			}
 			$LineDat[3] = -1 if $LineDat[3] == $LineDat[2] + 1;	# 貌似正负链加减一没统一？
 			#next unless defined $strand;
+			my $tVr=[-1];
+			for (@LineDat[10,11]) {
+				push @{$tVr},$_ if $_ != -1;
+			}
 			unless (defined $strand) {	# Well, we need more poistive.
 				#print OUT join("\t",@LineDat[0..3],'Virus','NA','0','0'),"\n";
 				my @range = split /-/,$TMPtmp{$LineDat[0]};
-				$OutDat{$LineDat[1]}{$LineDat[2]} = [$LineDat[0],$LineDat[3],$LineDat[9],$LineDat[8],@range];	# 临时补丁
+				$OutDat{$LineDat[1]}{$LineDat[2]} = [$LineDat[0],$LineDat[3],$LineDat[9],$LineDat[8],@range,$tVr];	# 临时补丁
 				++$OutCnt[1];
 				next;
 			}
 			#print OUT join("\t",@LineDat[0..3],'Virus',$strand,$left,$right),"\n";
-			$OutDat{$LineDat[1]}{$LineDat[2]} = [$LineDat[0],$LineDat[3],$LineDat[9],$strand,$left,$right];
+			$OutDat{$LineDat[1]}{$LineDat[2]} = [$LineDat[0],$LineDat[3],$LineDat[9],$strand,$left,$right,$tVr];
 			++$OutCnt[0];
 		}
 		for my $chr (sort {alphanum($a,$b)} keys %OutDat) {
@@ -582,7 +612,7 @@ sub do_analyse {
 					if ($lastL != -1) {
 						my @Dat = @{$OutDat{$chr}{$lastL}};	# 假设第一条的病毒结果最准确（其实应该是中间某个；最好前期打分）
 						$Dat[1] = -1 if $Dat[1] == $lastL + 1;
-						print OUT join("\t",$Dat[0],$chr,$lastL,@Dat[1..$#Dat]),"\n";
+						print OUT join("\t",$Dat[0],$chr,$lastL,@Dat[1..5],join(',',@{$Dat[6]})),"\n";
 						++$OutCnt[2];
 						#print STDERR join("\t",'---',$Dat[0],$chr,$lastL,@Dat[1..$#Dat]),"\n";
 					}
@@ -592,7 +622,7 @@ sub do_analyse {
 			if ($lastL != -1) {
 				my @Dat = @{$OutDat{$chr}{$lastL}};	# 假设第一条的病毒结果最准确（其实应该是中间某个；最好前期打分）
 				$Dat[1] = -1 if $Dat[1] == $lastL + 1;
-				print OUT join("\t",$Dat[0],$chr,$lastL,@Dat[1..$#Dat]),"\n";
+				print OUT join("\t",$Dat[0],$chr,$lastL,@Dat[1..5],join(',',@{$Dat[6]})),"\n";
 				++$OutCnt[2];
 			}
 		}
@@ -615,7 +645,16 @@ sub do_analyse {
 		for my $chr (sort keys %Results) {
 			my @Poses = sort {$a<=>$b} keys %{$Results{$chr}};
 			if (@Poses == 1) {
-				print OUT join("\t",@{$Results{$chr}{$Poses[0]}}),"\n";
+				my @tmp = @{$Results{$chr}{$Poses[0]}};
+				my $last1 = pop @tmp;
+				my $last2 = pop @tmp;
+				my $last3 = pop @tmp;
+				my @Virus;
+				my @tVr = split /,/,$last1;
+				for (@tVr,$last2,$last3) {
+					push @Virus,$_ if $_ != -1;
+				}
+				print OUT join("\t",@tmp,$Virus[0],$Virus[-1]),"\n";
 				next;
 			}
 
@@ -631,18 +670,39 @@ sub do_analyse {
 							push @Hum,$tt->[3] if $tt->[3] != -1;
 							push @Virus,$tt->[6] if $tt->[6] != -1;
 							push @Virus,$tt->[7] if $tt->[7] != -1;
+							my @tVr = split /,/,$tt->[8];
+							for (@tVr) {
+								push @Virus,$_ if $_ != -1;
+							}
 						}
 						@Hum = sort {$a<=>$b} @Hum;
 						@Virus = sort {$a<=>$b} @Virus;
 						push @Hum,-1 if scalar @Hum == 1;
-						push @Virus,-1 if scalar @Virus == 1;
+						if (scalar @Virus == 1) {
+							push @Virus,-1;
+						} else {
+							my $vlen = $Virus[1] - $Virus[0];
+							if ($vlen < $main::MinVirusLength) {
+								next;
+							}
+						}
 						print OUT join("\t",$Results{$chr}{$Hum[0]}->[0],$chr,$Hum[0],$Hum[-1],$Results{$chr}{$Hum[0]}->[4],$Results{$chr}{$Hum[0]}->[5],$Virus[0],$Virus[-1]),"\n";
 					}
 					@TTT = ($Results{$chr}{$Poses[$i]});
 				}
 			}
 			if (@TTT) {
-				print OUT join("\t",@{$TTT[0]}),"\n";
+				my @tmp = @{$TTT[0]};
+				my $last1 = pop @tmp;
+				my $last2 = pop @tmp;
+				my $last3 = pop @tmp;
+				my @Virus;
+				my @tVr = split /,/,$last1;
+				for (@tVr,$last2,$last3) {
+					push @Virus,$_ if $_ != -1;
+				}
+				print OUT join("\t",@tmp,$Virus[0],$Virus[-1]),"\n";
+				#print OUT join("\t",@{$TTT[0]}),"\n";
 			}
 		}
 		close IN; close OUT;
