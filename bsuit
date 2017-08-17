@@ -2,90 +2,71 @@
 use strict;
 use warnings;
 use File::Spec;
-#use Getopt::Std;
 
-#use FindBin 1.51 qw($RealBin);
-=pod
-http://perl5.git.perl.org/perl.git/commitdiff/ce6c0f31778913bcbf7ccd245ab390dddd8a1361
--$VERSION = "1.50";
-+$VERSION = "1.51";
-Thu, 19 May 2011 04:35:43 +0000 (21:35 -0700)
-The FindBin documentation states as a known bug that it will return a wrong result if a script of the same name as the current one exists in
-$PATH, and is executable.
-Further "discussion": http://www.perlmonks.org/?node_id=41213
-use Cwd 'abs_path';
-my $scriptpath = abs_path($0); # ended with filename
-=cut
 use FindBin qw($RealBin);
-if ($FindBin::VERSION < 1.51) {
-	warn "[!]Your Perl is too old, thus there can only be ONE `bsuit` file in your PATH. [FindBin Version: $FindBin::VERSION < 1.51]\n\n"
+if ( $FindBin::VERSION < 1.51 ) {
+	warn "[!]Your Perl is too old, thus there can only be ONE `bsuit` file in your PATH. [FindBin Version: $FindBin::VERSION < 1.51]\n\n";
 }
-FindBin::again(); # or FindBin->again; # Require $VERSION = "1.44"; http://perl5.git.perl.org/perl.git/commitdiff/f509412828fa95d62b8d41774f816a14ba046cac
+FindBin::again();
 use lib "$RealBin/lib";
-#print join("\n",$FindBin::Bin,$FindBin::Script,$FindBin::RealBin,$FindBin::RealScript,$0),"\n";
 
 require BSuitLib;
 use Galaxy::IO::INI;
 use Galaxy::Data;
 use Data::Dump qw(ddx);
 
-#our %opts;
-#getopts('oif:', \%opts);
-
 my %Cmd2Fun = (
 	'prepare' => \&do_pre,
-	'aln' => \&do_aln,
-	'grep' => \&do_grep,
+	'aln'     => \&do_aln,
+	'grep'    => \&do_grep,
 	'analyse' => \&do_analyse,
-	'check' => \&do_check,
-	'patch' => \&do_patch
+	'check'   => \&do_check,
+	'patch'   => \&do_patch
 );
 my @CmdOrder = qw(prepare aln grep analyse);
 
 sub ShowHelp() {
-	die '[!]Available Commands are: [',join('],[',@CmdOrder),"], case insensitive.\n";
+	die '[!]Available Commands are: [', join( '],[', @CmdOrder ), "], case insensitive.\n";
 }
-my $ShowHelp=0;
-if (@ARGV < 2) {
+my $ShowHelp = 0;
+if ( @ARGV < 2 ) {
 	warn "Usage: $0 <command> <config_file>\n";
 	ShowHelp();
 }
 
-my $cmd=lc shift;
-my $cfgfile=shift;
-my $base4=shift;
+my $cmd     = lc shift;
+my $cfgfile = shift;
+my $base4   = shift;
 our $fullcfgfile = File::Spec->rel2abs($cfgfile);
-our $FileData = 'DataFiles';
+our $FileData    = 'DataFiles';
 die "[!]Config File [$cfgfile] NOT found !\n" unless -f $cfgfile;
-if (defined $base4) {
+if ( defined $base4 ) {
 	warn "[!]Switch to use simulated WGS data.\n";
 	$FileData = 'Base4Files';
 }
 
-unless (exists $Cmd2Fun{$cmd}) {
+unless ( exists $Cmd2Fun{$cmd} ) {
 	warn "[x]Unknown Command: [$cmd] !\n";
 	ShowHelp();
 }
 
-#our $CFGminMAPQ = 30;
-our $minHostDepth = 10;
-our $minSoftClip = 10;
+our $minHostDepth       = 10;
+our $minSoftClip        = 10;
 our $methly3BaseErrRate = 0.08;
-our $posAround = 3;
-our $minVirLen = 5;
-our $minVirMapLen = 5;
-our $DEVELOP = 0;	# chr18 only
-our $DEBUG = 0;
-our $FORCE_UNMETH=0;	# Crick/F->G2A, Watson/R->C2T
-our $GrepMergeBetter = 1;
-our $ResultMergeRange = 10;
+our $posAround          = 3;
+our $minVirLen          = 5;
+our $minVirMapLen       = 5;
+our $DEVELOP            = 0;
+our $DEBUG              = 0;
+our $FORCE_UNMETH       = 0;
+our $GrepMergeBetter    = 1;
+our $ResultMergeRange   = 10;
 
-our $idbacmd = '--max_gap 100 --min_region 31 --min_contig 31 --mink 17 --maxk 89 --step 20';
+our $idbacmd    = '--max_gap 100 --min_region 31 --min_contig 31 --mink 17 --maxk 89 --step 20';
 our $PathPrefix = "PATH=\"$RealBin/bin:\$PATH\";";
 
 our $Config = Galaxy::IO::INI->new();
 $Config->read($cfgfile);
-#ddx \$Config;
 
 warn "[!]Runing $0 [$cmd].\n";
 
@@ -93,54 +74,53 @@ our $RootPath = $Config->{'Output'}->{'WorkDir'};
 $RootPath =~ s/[\/\\]+$//g;
 our $ProjectID = $Config->{'Output'}->{'ProjectID'};
 warn "[!] Working on: [$ProjectID] @ [$RootPath]\n";
-our $Aligner = $Config->{'Parameters'}->{'Aligner'} || 'bwa-meth';
+our $Aligner        = $Config->{'Parameters'}->{'Aligner'}        || 'bwa-meth';
 our $MinVirusLength = $Config->{'Parameters'}->{'MinVirusLength'} || 20;
 warn "[!] Aligner is [$Aligner]. Min Virus Length is $MinVirusLength.\n";
 
-if (grep /^sv1$/i,@ARGV) {
-	my @SDs = grep /\.SD$/,keys(%{$Config->{'InsertSizes'}});
+if ( grep /^sv1$/i, @ARGV ) {
+	my @SDs = grep /\.SD$/, keys( %{ $Config->{'InsertSizes'} } );
 	for (@SDs) {
 		$Config->{'InsertSizes'}->{$_} = 1;
 	}
-	warn "[!] All ",scalar(@SDs)," SD(s) are set to 1.\n";
+	warn "[!] All ", scalar(@SDs), " SD(s) are set to 1.\n";
 }
 
 unless ( -f "$RealBin/bin/water" ) {
 	die "[x] Cannot find \"$RealBin/bin/water\" !\n";
 }
 
-our $HostRefName = basename($Config->{'RefFiles'}->{'HostRef'});
-our $VirusRefName = basename($Config->{'RefFiles'}->{'VirusRef'});
-our $RefFilesSHA = getFilesHash($HostRefName,$VirusRefName);
+our $HostRefName  = basename( $Config->{'RefFiles'}->{'HostRef'} );
+our $VirusRefName = basename( $Config->{'RefFiles'}->{'VirusRef'} );
+our $RefFilesSHA  = getFilesHash( $HostRefName, $VirusRefName );
 
 our $RefConfig = Galaxy::IO::INI->new();
-our (%RefChrIDs,%VirusChrIDs,%Qual2LgP);
-if ($cmd ne 'prepare') {
+our ( %RefChrIDs, %VirusChrIDs, %Qual2LgP );
+if ( $cmd ne 'prepare' ) {
 	if ( -f "$RootPath/Ref/Ref.ini" ) {
 		$RefConfig->read("$RootPath/Ref/Ref.ini");
-	} else {die "[x] Prepare INI not found ! [$RootPath/Ref/Ref.ini]\n";}
-	my @RefChrID = split(',',$RefConfig->{$RefFilesSHA}->{'RefChrIDs'});
-	my @VirusChrID = split(',',$RefConfig->{$RefFilesSHA}->{'VirusChrIDs'});
+	}
+	else { die "[x] Prepare INI not found ! [$RootPath/Ref/Ref.ini]\n"; }
+	my @RefChrID   = split( ',', $RefConfig->{$RefFilesSHA}->{'RefChrIDs'} );
+	my @VirusChrID = split( ',', $RefConfig->{$RefFilesSHA}->{'VirusChrIDs'} );
 	for (@RefChrID) {
 		$RefChrIDs{$_} = $RefConfig->{$RefFilesSHA}->{$_};
 	}
 	$VirusChrIDs{$_} = $RefConfig->{$RefFilesSHA}->{$_} for @VirusChrID;
 
-	for my $q (1 .. 50) {
-		my $qchr = chr(33 + $q);
-		my $err = 10 ** (-$q/10);
-		my $p = 1 - $err;
-		my $lgp = log($p)/log(10);
-		my $lgtq = log($err/3)/log(10);
-		my $lgbp = log($p/2)/log(10);
-		my $lgbq = log($err/2)/log(10);
-		my ($v1,$v2,$v3,$v4) = (-10*$lgp, -10*$lgtq, -10*$lgbp, -10*$lgbq);
-		$Qual2LgP{$qchr} = [$q, $v1-$v2, $v2, $v3, $v4];
+	for my $q ( 1 .. 50 ) {
+		my $qchr = chr( 33 + $q );
+		my $err  = 10**( -$q / 10 );
+		my $p    = 1 - $err;
+		my $lgp  = log($p) / log(10);
+		my $lgtq = log( $err / 3 ) / log(10);
+		my $lgbp = log( $p / 2 ) / log(10);
+		my $lgbq = log( $err / 2 ) / log(10);
+		my ( $v1, $v2, $v3, $v4 ) = ( -10 * $lgp, -10 * $lgtq, -10 * $lgbp, -10 * $lgbq );
+		$Qual2LgP{$qchr} = [ $q, $v1 - $v2, $v2, $v3, $v4 ];
 	}
-	#ddx \%Qual2LgP;
 }
 
-$Cmd2Fun{$cmd}(@ARGV);	# If use `do $Cmd2Fun{$cmd}();`, the sub MUST return 1;
+$Cmd2Fun{$cmd}(@ARGV);
 warn "[!]done !\n";
 
-# overlap = (min(end_mate1,end_mate2) - max(start_mate1,start_mate2)) http://sourceforge.net/p/bio-bwa/mailman/message/27028596/
