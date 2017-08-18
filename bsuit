@@ -50,17 +50,18 @@ unless ( exists $Cmd2Fun{$cmd} ) {
 	ShowHelp();
 }
 
-our $minHostDepth       = 10;
-our $minSoftClip        = 10;
-our $methly3BaseErrRate = 0.08;
-our $posAround          = 3;
-our $minVirLen          = 5;
-our $minVirMapLen       = 5;
-our $DEVELOP            = 0;
-our $DEBUG              = 0;
-our $FORCE_UNMETH       = 0;
-our $GrepMergeBetter    = 1;
-our $ResultMergeRange   = 10;
+our $minHostDepth         = 10;
+our $minSoftClip          = 10;
+our $methly3BaseErrRate   = 0.08;
+our $posAround            = 3;
+our $minVirLen            = 5;
+our $minVirMapLen         = 5;
+our $DEVELOP              = 0;
+our $DEBUG                = 0;
+our $FORCE_UNMETH         = 0;
+our $GrepMergeBetter      = 1;
+our $ResultMergeRange     = 10;
+our $EnableWretchedSequel = 1;
 
 our $idbacmd    = '--max_gap 100 --min_region 31 --min_contig 31 --mink 17 --maxk 89 --step 20';
 our $PathPrefix = "PATH=\"$RealBin/bin:\$PATH\";";

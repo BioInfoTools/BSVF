@@ -750,14 +750,23 @@ sub mergeStr($) {
 				if ( $c eq 'Y' ) {
 					$Col{$_} += $main::Qual2LgP{$q}->[4] for qw(G A);
 					$Col{$_} += $main::Qual2LgP{$q}->[3] for qw(C T);
+					if ($main::EnableWretchedSequel) {
+						$Col{$_} += -10 * log( 1 / 8 );
+					}
 				}
 				elsif ( $c eq 'R' ) {
 					$Col{$_} += $main::Qual2LgP{$q}->[4] for qw(C T);
 					$Col{$_} += $main::Qual2LgP{$q}->[3] for qw(G A);
+					if ($main::EnableWretchedSequel) {
+						$Col{$_} += -10 * log( 1 / 8 );
+					}
 				}
 				else {
 					$Col{$_} += $main::Qual2LgP{$q}->[2] for qw(A T C G);
 					$Col{$c} += $main::Qual2LgP{$q}->[1];
+					if ($main::EnableWretchedSequel) {
+						$Col{$_} += -10 * log( 1 / 4 );
+					}
 				}
 			}
 		}
