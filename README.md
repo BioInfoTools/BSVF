@@ -45,7 +45,8 @@ Your `bsIntegration/bin/` should be like this:
 ./bsuit aln prj.ini
 ./bsuit grep prj.ini
 ./bsuit analyse prj.ini
-```
+
+![a Logo](https://raw.githubusercontent.com/BGI-SZ/BSVF/master/logo/BSVFlogo.png)```
 
 ## Test Run
 
