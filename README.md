@@ -22,6 +22,8 @@ For directional libraries only. PBAT and indirectional libraries are _NOT_ suppo
 
 ## Install
 
+### Normal
+
 Run `pip install toolshed`.
 
 Run `src/install.sh`.
@@ -36,6 +38,31 @@ Your `bsIntegration/bin/` should be like this:
 -rwxr-xr-x  971772 Feb 20 00:48 samtools
 ````
 
+### Homebrew/Linuxbrew
+
+````bash
+brew tap Ensembl/homebrew-external
+brew install emboss bwa samtools python
+pip install toolshed
+
+ln -s `which bwa` ./bin/
+ln -s `which samtools` ./bin/
+ln -s `which water` ./bin/
+
+brew install gcc
+cd ./src/analyser/
+make
+cp -av analyser/bsanalyser ../../bin/
+cd ../../bin/
+ls -l
+````
+
+## Citation
+
+Gao, S., Hu, X., Xu, F., Gao, C., Xiong, K., Zhao, X., … Pedersen, C. N. S. (2017, December 18). BS-virus-finder: virus integration calling using bisulfite sequencing data. GigaScience. <https://doi.org/10.1093/gigascience/gix123>
+
+Repo URL: <https://github.com/BGI-SZ/BSVF>
+
 ## Usage
 
 ```
@@ -45,7 +72,7 @@ Your `bsIntegration/bin/` should be like this:
 ./bsuit aln prj.ini
 ./bsuit grep prj.ini
 ./bsuit analyse prj.ini
-````
+```
 
 ![a Logo](https://raw.githubusercontent.com/BGI-SZ/BSVF/master/logo/BSVFlogo.png)
 
@@ -127,6 +154,10 @@ tSE_X.SD=1
 [Output]
 WorkDir=/share/work/bsvir/bsI
 ProjectID=SZ2015
+
+[Parameters]
+Aligner=bwa-meth
+MinVirusLength=20
 ```
 
 ## Build
@@ -219,3 +250,17 @@ Compare with [ViralFusionSeq [VFS]](https://sourceforge.net/projects/viralfusion
 
 \* for virus-infected reads  
 \# for integration infomation
+
+## One More Things
+
+To extract relevant PE reads within 500 bp range from final result, *BS.analyse* for example.
+
+```bash
+perl -lane '$a=$F[2]-501;$b=$F[2]+501;print join("\t",$F[1],$a,$b)' ../W2BS_analyse/BS.analyse >zones.bed
+vi zones.bed # To remove the first head line
+# sort BS.bam to BS.sort.bam and index it.
+samtools view -L zones.bed BS.sort.bam > zones.sam
+awk '{print $1}' zones.sam | sort | uniq > zones.ids
+#samtools view BS.bam | grep -F -f zones.ids >zones.PE.sam
+samtools view BS.sort.bam | grep -F -f zones.ids > zones.PEs.sam # sorted one maybe more useful.
+```
