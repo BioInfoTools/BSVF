@@ -1,0 +1,13 @@
+[submodule "src/bwa"]
+	path = src/bwa
+	url = https://github.com/lh3/bwa.git
+[submodule "src/samtools"]
+	path = src/samtools
+	url = https://github.com/samtools/samtools.git
+[submodule "src/htslib"]
+	path = src/htslib
+	url = https://github.com/samtools/htslib.git
+[submodule "src/emboss"]
+	path = src/emboss
+	url = https://github.com/ICO2S/emboss.git
+
